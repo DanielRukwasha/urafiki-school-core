@@ -1,17 +1,20 @@
 <!doctype html>
-<html lang="fr">
+<html lang="{{ ui_theme.locale }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"allowScriptTags":false,"timeout":15000}'>
-<title>{% block title %}Portail scolaire{% endblock %} · Urafiki</title>
+<title>{% block title %}Portail scolaire{% endblock %} · {{ ui_theme.name }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+{% from "components/theme.html" import theme_tokens, identity %}
+{{ theme_tokens(ui_theme) }}
+{% if ui_theme.favicon_url %}<link rel="icon" href="{{ ui_theme.favicon_url }}">{% endif %}
 {% block head %}{% endblock %}
 </head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
 {% if current_user.is_authenticated %}
 <aside class="sidebar">
-<a class="brand" href="{{ url_for('portal.dashboard') }}"><span class="brand-mark">U</span> Urafiki<span class="brand-sub">ESPACE SCOLAIRE</span></a>
+<a class="brand" href="{{ url_for('portal.dashboard') }}">{{ identity(ui_theme) }}<span class="brand-sub">ESPACE SCOLAIRE</span></a>
 <nav aria-label="Navigation principale">
 <span class="nav-label">PÉDAGOGIE</span>
 <a href="{{ url_for('portal.dashboard') }}" {% if request.endpoint == 'portal.dashboard' %}aria-current="page"{% endif %}>Classes et périodes</a>
@@ -24,7 +27,7 @@
 </aside>
 {% endif %}
 <div class="{{ 'workspace' if current_user.is_authenticated else 'auth-workspace' }}">
-<header class="topbar"><span>Plateforme de gestion scolaire</span><span class="badge">Urafiki</span></header>
+<header class="topbar"><span>Plateforme de gestion scolaire</span><span class="badge">{{ ui_theme.name }}</span></header>
 <main id="main" tabindex="-1">
 {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert {{ category }}" role="alert">{{ message }}</div>{% endfor %}{% endwith %}
 {% block content %}{% endblock %}

@@ -10,6 +10,9 @@ def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(get_config(config_name))
 
+    from app.ui import install_presentation
+
+    install_presentation(app)
     _register_extensions(app)
     _register_blueprints(app)
     _register_error_handlers(app)

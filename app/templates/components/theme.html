@@ -1,0 +1,16 @@
+{% macro theme_tokens(theme) -%}
+<style id="tenant-theme">
+:root {
+{% for token, value in theme.tokens.items() %}  --{{ token }}: {{ value }};
+{% endfor %}
+}
+</style>
+{%- endmacro %}
+{% macro identity(theme, large=false) -%}
+<div class="identity {{ 'identity-large' if large }}">
+{% if theme.logo_url %}<img class="tenant-logo" src="{{ theme.logo_url }}" alt="" width="48" height="48">
+{% else %}<span class="brand-mark" aria-hidden="true">{{ theme.initials }}</span>{% endif %}
+<span class="tenant-name">{{ theme.name }}</span>
+</div>
+{%- endmacro %}
+
