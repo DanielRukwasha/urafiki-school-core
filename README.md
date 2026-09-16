@@ -1,6 +1,6 @@
 # Urafiki School Core
 
-Backend générique et réutilisable pour la plateforme de gestion scolaire **Urafiki** : structure pédagogique, notation, délibérations. Conçu pour être **déployé en une instance distincte par école cliente** (sa propre base de données, sa propre installation) — le même code sert au premier déploiement (**Institut Mont Carmel**) et à tous les suivants, sans réécriture. Aucune donnée spécifique à une école (nom, barème, coefficient, seuil de passage) n'est codée en dur : tout vient de la base, configuré/seedé par déploiement.
+Backend générique et réutilisable pour la plateforme de gestion scolaire **Urafiki** : structure pédagogique, notation, délibérations. **Produit multi-tenant** — une seule base de code, un seul déploiement, plusieurs écoles clientes isolées par donnée (`ecole_id` sur chaque table métier, filtrage automatique côté application, PostgreSQL Row Level Security en second rideau). Institut Mont Carmel est le premier tenant, pas le modèle du code : aucun nom d'établissement, barème, coefficient ou seuil de passage n'est codé en dur — tout vient de la base, par tenant. Voir [ARCHITECTURE_MULTITENANT.md](ARCHITECTURE_MULTITENANT.md) pour le détail de l'isolation, [TENANT_ONBOARDING.md](TENANT_ONBOARDING.md) pour intégrer une nouvelle école, et [GOUVERNANCE.md](GOUVERNANCE.md) pour la règle de propriété des données.
 
 ## Sommaire
 
@@ -13,6 +13,7 @@ Backend générique et réutilisable pour la plateforme de gestion scolaire **Ur
 - [Variables d'environnement](#variables-denvironnement)
 - [Tests](#tests)
 - [Feuille de route](#feuille-de-route)
+- [Multi-tenant](#multi-tenant)
 
 ## Architecture
 
@@ -135,6 +136,11 @@ La CI (`.github/workflows/ci.yml`) exécute la suite contre un vrai service Post
 
 - **P1-Socle** : Application Factory, modèle relationnel complet, authentification, RBAC, CI/CD. ✅
 - **P2-Quotation-Engine** : moteur de calcul déterministe (moyennes, classement, délibération), audit des notes. ✅
-- **P3+** (backlog) : routes CRUD complètes de saisie des notes, tableaux de bord par rôle, bulletins, provisioning automatisé d'une nouvelle instance école.
+- **Multi-Tenant** : isolation des données par école (`ecole_id` + RLS), résolution de tenant par sous-domaine, configuration comme produit, provisioning en une commande. ✅ (socle backend — API super-admin HTTP en cours, voir [ARCHITECTURE_MULTITENANT.md](ARCHITECTURE_MULTITENANT.md))
+- **P3+** (backlog) : routes CRUD complètes de saisie des notes, tableaux de bord par rôle, bulletins (en cours côté Frontend), échanges inter-écoles (modèle documenté, non implémenté — voir [GOUVERNANCE.md](GOUVERNANCE.md)).
 
 Suivi détaillé via les [Issues](../../issues) et [Milestones](../../milestones) GitHub.
+
+## Multi-tenant
+
+Provisionner une nouvelle école : `flask tenant create --name ... --domain ...` — voir [TENANT_ONBOARDING.md](TENANT_ONBOARDING.md) pour la procédure complète et [ARCHITECTURE_MULTITENANT.md](ARCHITECTURE_MULTITENANT.md) pour le fonctionnement de l'isolation. Aucune étape de cette procédure ne touche la base de données à la main.
