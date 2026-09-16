@@ -1,0 +1,11 @@
+﻿{% extends "base.html" %}{% from "components/macros.html" import heading %}
+{% block title %}Résultats · {{ klass.name }}{% endblock %}{% block content %}
+<a href="{{ url_for('portal.dashboard') }}">← Classes et périodes</a>
+{{ heading(klass.academic_year.label ~ ' · ' ~ period.name, klass.name ~ ' — Résultats', 'Synthèse de période pour préparer la délibération. Les résultats incomplets restent provisoires.') }}
+<div class="actions">{% for kind, label in [('bulletins', 'Bulletins'), ('palmares', 'Palmarès')] %}<a class="button secondary" href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind) }}">{{ label }} · Aperçu</a><a class="button" href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}">{{ label }} · PDF</a>{% endfor %}</div>
+<div class="alert">Les cotes manquantes sont exclues du calcul. Un classement partiel ne constitue pas une décision de passage annuel.</div>
+<div class="table-wrap"><table><caption>{{ klass.name }} · {{ period.name }}</caption><thead><tr><th scope="col">Rang</th><th scope="col">Élève</th><th scope="col">Cotes saisies</th><th scope="col" class="numeric">Total pondéré</th><th scope="col" class="numeric">Résultat</th><th scope="col">État</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ ranks.get(row.enrollment.id, '—') }}</td><th scope="row">{{ row.enrollment.student.full_name }}<small>{{ row.enrollment.student.matricule }}</small></th><td>{{ row.entered }} / {{ courses|length }}</td><td class="numeric">{{ '%.2f'|format(row.total.weighted_points) }} / {{ '%.2f'|format(row.total.weighted_possible) }}</td><td class="numeric">{{ (row.percentage ~ ' %') if row.percentage is not none else 'Non évalué' }}</td><td><span class="badge">{{ 'Complet' if courses and row.entered == courses|length else 'Provisoire' }}</span></td></tr>
+{% else %}<tr><td colspan="6">Aucun élève inscrit.</td></tr>{% endfor %}
+</tbody></table></div>{% endblock %}
+
