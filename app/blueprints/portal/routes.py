@@ -325,10 +325,18 @@ def results(class_id, period_id):
 def print_report(class_id, period_id, kind):
     if kind not in ("bulletins", "palmares"):
         abort(404)
+    from app.ui.report_assets import inline_report_logo
+
+    theme, layout = _report_presentation()
+    pdf = request.args.get("format") == "pdf"
     html = render_template(
         "portal/print.html",
         kind=kind,
-        pdf=request.args.get("format") == "pdf",
+        pdf=pdf,
+        preview=False,
+        ui_theme=theme,
+        report_layout=layout,
+        report_logo_url=inline_report_logo(theme.logo_url) if pdf else theme.logo_url,
         **result_context(class_id, period_id),
     )
     if request.args.get("format") != "pdf":
@@ -343,3 +351,75 @@ def print_report(class_id, period_id, kind):
         f'attachment; filename="{kind}-{class_id}-{period_id}.pdf"'
     )
     return response
+
+
+def _report_presentation():
+    from flask import current_app
+
+    presentation = {}
+    current_app.update_template_context(presentation)
+    return presentation["ui_theme"], presentation["report_layout"]
+
+
+def _editor_context(class_id, period_id):
+    from app.ui.reports import COLUMN_LABELS, LABELS
+
+    ctx = result_context(class_id, period_id)
+    _, layout = _report_presentation()
+    ctx.update(
+        report_layout=layout,
+        column_options={key: layout.labels[label] for key, label in COLUMN_LABELS.items()},
+        default_labels=LABELS[layout.locale],
+        custom_labels={
+            key: value
+            for key, value in layout.labels.items()
+            if value != LABELS[layout.locale][key]
+        },
+    )
+    return ctx
+
+
+@bp.get("/classes/<int:class_id>/periods/<int:period_id>/report-template")
+@roles_required(RoleEnum.DIRECTION)
+def report_editor(class_id, period_id):
+    return render_template("portal/report_editor.html", **_editor_context(class_id, period_id))
+
+
+@bp.route("/classes/<int:class_id>/periods/<int:period_id>/report-preview", methods=["GET", "POST"])
+@roles_required(RoleEnum.DIRECTION)
+def report_preview(class_id, period_id):
+    from app.ui.reports import ReportConfigError, build_report_layout
+
+    ctx = result_context(class_id, period_id)
+    theme, layout = _report_presentation()
+    if request.method == "POST":
+        try:
+            configuration = {
+                "locale": request.form.get("locale"),
+                "orientation": request.form.get("orientation"),
+                "header_alignment": request.form.get("header_alignment"),
+                "font_size": int(request.form.get("font_size", "10")),
+                "show_logo": "show_logo" in request.form,
+                "header_lines": request.form.get("header_lines", "").splitlines(),
+                "legal_text": request.form.get("legal_text", ""),
+                "signatures": request.form.get("signatures", "").splitlines(),
+                "columns": [value for value in request.form.getlist("column") if value],
+                "labels": {
+                    key[6:]: value
+                    for key, value in request.form.items()
+                    if key.startswith("label_") and value.strip()
+                },
+            }
+            layout = build_report_layout(configuration)
+        except (ReportConfigError, ValueError) as error:
+            return render_template("portal/preview_error.html", error=str(error)), 422
+    return render_template(
+        "portal/print.html",
+        kind="bulletins",
+        preview=True,
+        pdf=False,
+        report_layout=layout,
+        ui_theme=theme,
+        report_logo_url=theme.logo_url,
+        **ctx,
+    )

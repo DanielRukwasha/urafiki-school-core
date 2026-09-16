@@ -2,6 +2,7 @@
 {% block title %}Résultats · {{ klass.name }}{% endblock %}{% block content %}
 <a href="{{ url_for('portal.dashboard') }}">← Classes et périodes</a>
 {{ heading(klass.academic_year.label ~ ' · ' ~ period.name, klass.name ~ ' — Résultats', 'Synthèse de période pour préparer la délibération. Les résultats incomplets restent provisoires.') }}
+{% if current_user.role.value == 'DIRECTION' %}<p><a class="button secondary" href="{{ url_for('portal.report_editor', class_id=klass.id, period_id=period.id) }}">Configurer et prévisualiser le bulletin</a></p>{% endif %}
 <div class="actions">{% for kind, label in [('bulletins', 'Bulletins'), ('palmares', 'Palmarès')] %}<a class="button secondary" href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind) }}">{{ label }} · Aperçu</a><a class="button" href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}">{{ label }} · PDF</a>{% endfor %}</div>
 <div class="alert">Les cotes manquantes sont exclues du calcul. Un classement partiel ne constitue pas une décision de passage annuel.</div>
 <div class="table-wrap"><table><caption>{{ klass.name }} · {{ period.name }}</caption><thead><tr><th scope="col">Rang</th><th scope="col">Élève</th><th scope="col">Cotes saisies</th><th scope="col" class="numeric">Total pondéré</th><th scope="col" class="numeric">Résultat</th><th scope="col">État</th></tr></thead><tbody>

@@ -1,0 +1,44 @@
+<style>
+@page {
+  size: A4 {{ report_layout.orientation }};
+  margin: 17mm 15mm 20mm;
+  @bottom-left { content: element(report-footer); }
+  @bottom-right { content: element(report-page-label); }
+}
+* { box-sizing: border-box; }
+body { font: {{ report_layout.font_size }}pt "DejaVu Sans", sans-serif; color: var(--text); margin: 0; }
+h1 { font-size: 21pt; margin: 5mm 0; }
+h2 { font-size: 13pt; margin: 4mm 0; }
+p { margin: 2mm 0; overflow-wrap: anywhere; }
+a { color: var(--primary); }
+.school-name { font-size: 11pt; font-weight: bold; }
+.report-header { border-bottom: 1.5pt solid var(--primary); padding-bottom: 5mm; margin-bottom: 6mm; text-align: {{ report_layout.header_alignment }}; }
+.report-logo { object-fit: contain; margin-bottom: 3mm; }
+.meta { background: var(--surface-subtle); padding: 4mm; margin-bottom: 5mm; }
+.muted, .note { color: var(--muted); }
+.report { break-before: page; }
+.report:first-of-type { break-before: auto; }
+table { width: 100%; border-collapse: collapse; margin: 5mm 0; }
+thead { display: table-header-group; }
+th, td { border-bottom: .5pt solid var(--line); padding: 3mm 2mm; text-align: left; overflow-wrap: anywhere; }
+th { background: var(--surface-subtle); font-size: 9pt; }
+tr { break-inside: avoid; }
+.numeric { text-align: right; }
+.summary { border-top: 1pt solid var(--primary); padding: 4mm 0; break-inside: avoid; }
+.signatures { margin-top: 12mm; display: table; width: 100%; table-layout: fixed; break-inside: avoid; }
+.signatures div { display: table-cell; padding-right: 5mm; overflow-wrap: anywhere; }
+.note, .legal-text { font-size: 9pt; margin-top: 5mm; white-space: pre-line; }
+.toolbar { padding: 16px; background: var(--surface-subtle); margin-bottom: 20px; }
+.preview-banner { font-weight: bold; border: 2pt solid var(--warning); padding: 4mm; color: var(--warning); background: var(--warning-surface); margin-bottom: 5mm; }
+.report-footer { position: running(report-footer); font: 9pt sans-serif; color: var(--muted); }
+.report-page-label { position: running(report-page-label); font: 9pt sans-serif; color: var(--muted); }
+.page-number::after { content: counter(page) " / " counter(pages); }
+@media print { .toolbar { display: none; } }
+@media screen {
+  body { max-width: {{ '297' if report_layout.orientation == 'landscape' else '210' }}mm; margin: 25px auto; padding: 15mm; background: var(--surface); }
+  html { background: var(--background); }
+  .report { margin-bottom: 40px; }
+  .report-footer { position: static; margin-top: 5mm; }
+}
+</style>
+
