@@ -1,0 +1,4 @@
+-r requirements-dev.txt
+playwright==1.63.0
+pypdf==6.19.0
+

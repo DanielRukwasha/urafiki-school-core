@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}{% from "components/macros.html" import field %}
+{% extends "base.html" %}{% from "components/macros.html" import field %}
 {% block title %}Connexion{% endblock %}
 {% block content %}<div class="panel"><p class="eyebrow">URAFIKI · ESPACE SCOLAIRE</p><h1>Connexion</h1><p class="muted">Retrouvez vos classes et vos résultats.</p>
 <form method="post" novalidate>{{ form.hidden_tag() }}{{ field(form.email, 'username') }}{{ field(form.password, 'current-password') }}<p>{{ form.remember_me() }} {{ form.remember_me.label }}</p>{{ form.submit() }}</form></div>{% endblock %}

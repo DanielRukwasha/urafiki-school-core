@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}{% from "components/macros.html" import heading %}
+{% extends "base.html" %}{% from "components/macros.html" import heading %}
 {% block title %}Résultats · {{ klass.name }}{% endblock %}{% block content %}
 <a href="{{ url_for('portal.dashboard') }}">← Classes et périodes</a>
 {{ heading(klass.academic_year.label ~ ' · ' ~ period.name, klass.name ~ ' — Résultats', 'Synthèse de période pour préparer la délibération. Les résultats incomplets restent provisoires.') }}
