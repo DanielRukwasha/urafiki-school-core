@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+<h1>Bienvenue, {{ user.full_name }}</h1>
+<p>Rôle : {{ user.role.value }}</p>
+<p><a href="{{ url_for('auth.logout') }}">Se déconnecter</a></p>
+{% endblock %}
