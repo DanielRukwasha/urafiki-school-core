@@ -226,6 +226,7 @@ def sync(class_id, period_id):
                 grade = (
                     Grade.query.filter_by(enrollment_id=eid, course_id=cid, period_id=period_id)
                     .with_for_update()
+                    .populate_existing()
                     .first()
                 )
                 base = str(grade.score) if grade else ""
