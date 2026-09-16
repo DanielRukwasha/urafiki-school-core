@@ -21,7 +21,7 @@
     {{ field(form.email, 'username') }}
     {{ field(form.password, 'current-password') }}
     <p>{{ form.remember_me() }} {{ form.remember_me.label }}</p>
-    {{ form.submit() }}
+    {{ form.submit(class_="button") }}
   </form>
   {% endif %}
 </section>

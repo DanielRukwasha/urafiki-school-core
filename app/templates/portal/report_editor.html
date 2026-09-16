@@ -23,7 +23,7 @@
   {% for position in range(6) %}<div class="field"><label for="column-{{ position }}">Colonne {{ position + 1 }}</label><select id="column-{{ position }}" name="column"><option value="">Non affichée</option>{% for key, label in column_options.items() %}<option value="{{ key }}" {% if position < report_layout.columns|length and report_layout.columns[position] == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>{% endfor %}
   </fieldset>
   <fieldset><legend>Libellés et mentions</legend>
-  {% for key in ['bulletin_title','ranking_title','course','score','maximum','coefficient','weighted'] %}<div class="field"><label for="label-{{ key }}">{{ default_labels[key] }}</label><input id="label-{{ key }}" name="label_{{ key }}" value="{{ custom_labels.get(key, '') }}" maxlength="300" placeholder="{{ report_layout.labels[key] }}"></div>{% endfor %}
+  {% for key in ['bulletin_title','ranking_title','course','code','score','maximum','coefficient','weighted'] %}<div class="field"><label for="label-{{ key }}">{{ default_labels[key] }}</label><input id="label-{{ key }}" name="label_{{ key }}" value="{{ custom_labels.get(key, '') }}" maxlength="300" placeholder="{{ report_layout.labels[key] }}"></div>{% endfor %}
   <div class="field"><label for="legal-text">Mentions légales</label><textarea id="legal-text" name="legal_text" maxlength="2000">{{ report_layout.legal_text }}</textarea></div>
   <div class="field"><label for="signatures">Blocs de signature (un par ligne, quatre maximum)</label><textarea id="signatures" name="signatures" maxlength="600">{{ report_layout.signatures|join('\n') }}</textarea></div>
   </fieldset>

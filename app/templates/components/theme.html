@@ -10,7 +10,7 @@
 <div class="identity {{ 'identity-large' if large }}">
 {% if theme.logo_url %}<img class="tenant-logo" src="{{ theme.logo_url }}" alt="" width="48" height="48">
 {% else %}<span class="brand-mark" aria-hidden="true">{{ theme.initials }}</span>{% endif %}
-<span class="tenant-name">{{ theme.name }}</span>
+<span class="tenant-name" lang="{{ theme.locale }}">{{ theme.name }}</span>
 </div>
 {%- endmacro %}
 

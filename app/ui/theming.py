@@ -56,7 +56,10 @@ def safe_asset_url(value):
     decoded = value
     for _ in range(3):
         decoded = unquote(decoded)
-    parts = urlsplit(decoded)
+    try:
+        parts = urlsplit(decoded)
+    except ValueError:
+        return None
     if (
         parts.scheme
         or parts.netloc

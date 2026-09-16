@@ -33,6 +33,16 @@ tr { break-inside: avoid; }
 .report-footer { position: running(report-footer); font: 9pt sans-serif; color: var(--muted); }
 .report-page-label { position: running(report-page-label); font: 9pt sans-serif; color: var(--muted); }
 .page-number::after { content: counter(page) " / " counter(pages); }
+{% if report_layout.orientation == 'landscape' %}
+h1 { font-size: 18pt; margin: 3mm 0; }
+h2 { margin: 2mm 0; }
+.report-header { padding-bottom: 3mm; margin-bottom: 4mm; }
+.report-logo { float: right; margin: 0 0 0 5mm; }
+.meta { padding: 3mm; margin-bottom: 3mm; }
+th, td { padding: 2mm; }
+.summary { padding: 2mm 0; }
+.signatures { margin-top: 6mm; }
+{% endif %}
 @media print { .toolbar { display: none; } }
 @media screen {
   body { max-width: {{ '297' if report_layout.orientation == 'landscape' else '210' }}mm; margin: 25px auto; padding: 15mm; background: var(--surface); }

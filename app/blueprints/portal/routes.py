@@ -11,7 +11,6 @@ from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass
 from app.models.course import Course
 from app.models.grading import Grade
-from app.models.institution import Institution
 from app.models.student import Enrollment, EnrollmentStatus, Student
 from app.models.teaching import TeacherAssignment
 from app.models.user import RoleEnum, User
@@ -310,7 +309,7 @@ def result_context(class_id, period_id):
             row["enrollment"].student.last_name,
         )
     )
-    ctx.update(rows=rows, ranks=ranks, institution=Institution.query.first())
+    ctx.update(rows=rows, ranks=ranks)
     return ctx
 
 
