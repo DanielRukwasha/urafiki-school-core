@@ -1,5 +1,5 @@
 """Smoke test: the Alembic migration chain must build the full schema from
-scratch on a clean database. Runs against a throwaway SQLite file — CI runs
+scratch on a clean database. Runs against a throwaway SQLite file â€” CI runs
 the same chain against real PostgreSQL as the authoritative check.
 """
 
@@ -10,6 +10,7 @@ from alembic.config import Config
 from sqlalchemy import inspect
 
 from app import create_app
+from app.config import TestConfig
 from app.extensions import db
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -30,12 +31,12 @@ EXPECTED_TABLES = {
 }
 
 
-def test_alembic_upgrade_head_creates_full_schema(tmp_path):
+def test_alembic_upgrade_head_creates_full_schema(tmp_path, monkeypatch):
     db_path = tmp_path / "migration_smoke.db"
     db_url = f"sqlite:///{db_path.as_posix()}"
 
+    monkeypatch.setattr(TestConfig, "SQLALCHEMY_DATABASE_URI", db_url)
     application = create_app("testing")
-    application.config["SQLALCHEMY_DATABASE_URI"] = db_url
 
     alembic_cfg = Config(str(PROJECT_ROOT / "migrations" / "alembic.ini"))
     alembic_cfg.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
