@@ -138,3 +138,14 @@ La CI (`.github/workflows/ci.yml`) exécute la suite contre un vrai service Post
 - **P3+** (backlog) : routes CRUD complètes de saisie des notes, tableaux de bord par rôle, bulletins, provisioning automatisé d'une nouvelle instance école.
 
 Suivi détaillé via les [Issues](../../issues) et [Milestones](../../milestones) GitHub.
+
+
+## Portail frontend
+
+Le portail enseignant et direction est accessible sur /portal/ apres connexion.
+Il comprend les attributions, la saisie avec brouillons locaux et synchronisation HTMX,
+les resultats de periode et les bulletins/palmares A4.
+Voir [architecture, fonctionnement et verification](docs/frontend.md).
+Pour les PDF : pip install -r requirements-pdf.txt et installer les bibliotheques natives Pango.
+Pour les tests navigateur : pip install -r requirements-browser.txt, puis
+python -m playwright install chromium et pytest tests/browser -q.
