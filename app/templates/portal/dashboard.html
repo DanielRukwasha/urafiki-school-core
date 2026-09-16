@@ -1,0 +1,11 @@
+﻿{% extends "base.html" %}{% from "components/macros.html" import heading, empty %}
+{% block title %}Classes et périodes{% endblock %}
+{% block content %}
+{{ heading('VUE D’ENSEMBLE', 'Classes et périodes', 'Bienvenue. Choisissez une classe et une période pour poursuivre votre travail.') }}
+<div class="report-summary"><div><strong>{{ classes|length }}</strong><span class="muted">Classes accessibles</span></div><div><strong>{{ courses|length }}</strong><span class="muted">Cours attribués au périmètre</span></div></div>
+<div class="cards">{% for klass in classes %}<section class="class-card"><span class="badge">{{ klass.academic_year.label }}</span><h2 style="margin-top:16px">{{ klass.name }}</h2><p class="muted">{{ klass.section.name }}</p>
+{% for period in klass.academic_year.evaluation_periods if not period.is_archived %}<div class="period-row"><div><strong>{{ period.name }}</strong><small>{{ period.start_date }} · {{ period.end_date }}</small></div><div class="actions">
+{% if current_user.role.value != 'SECRETARIAT' %}<a class="button secondary" href="{{ url_for('portal.grid', class_id=klass.id, period_id=period.id) }}">Saisir les cotes</a>{% endif %}
+{% if current_user.role.value != 'ENSEIGNANT' %}<a href="{{ url_for('portal.results', class_id=klass.id, period_id=period.id) }}">Résultats</a>{% endif %}</div></div>{% else %}{{ empty('Aucune période disponible.') }}{% endfor %}</section>
+{% else %}{{ empty('Aucune classe accessible. Contactez la direction pour vérifier vos attributions.') }}{% endfor %}</div>{% endblock %}
+

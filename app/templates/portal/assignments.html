@@ -1,0 +1,10 @@
+﻿{% extends "base.html" %}{% from "components/macros.html" import heading, empty, alert %}
+{% block title %}Attribution des cours{% endblock %}{% block content %}
+{{ heading('DIRECTION', 'Attribution des cours', 'Définissez les cours accessibles à chaque enseignant.') }}
+{% if error %}{{ alert(error) }}{% endif %}
+<section class="panel"><h2>Nouvelle attribution</h2><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-row">
+<div class="field"><label for="teacher">Enseignant</label><select id="teacher" name="teacher_id" required><option value="">Choisir un enseignant</option>{% for teacher in teachers %}<option value="{{ teacher.id }}">{{ teacher.full_name }}</option>{% endfor %}</select></div>
+<div class="field"><label for="course">Cours et classe</label><select id="course" name="course_id" required><option value="">Choisir un cours</option>{% for course in courses %}<option value="{{ course.id }}">{{ course.school_class.name }} · {{ course.name }}</option>{% endfor %}</select></div></div><button type="submit">Attribuer le cours</button></form></section>
+<div class="table-wrap"><table><caption>Attributions actives</caption><thead><tr><th scope="col">Enseignant</th><th scope="col">Cours</th><th scope="col">Classe</th></tr></thead><tbody>{% for item in assignments %}<tr><td>{{ item.teacher.full_name }}</td><td>{{ item.course.name }}</td><td>{{ item.course.school_class.name }}</td></tr>{% else %}<tr><td colspan="3">Aucune attribution active.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}
+

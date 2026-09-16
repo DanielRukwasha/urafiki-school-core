@@ -1,0 +1,9 @@
+﻿{% macro heading(eyebrow, title, description) -%}
+<div class="page-heading"><p class="eyebrow">{{ eyebrow }}</p><h1>{{ title }}</h1><p class="muted">{{ description }}</p></div>
+{%- endmacro %}
+{% macro empty(message) -%}<div class="empty">{{ message }}</div>{%- endmacro %}
+{% macro field(field, autocomplete='off') -%}
+<div class="field">{{ field.label }}{{ field(autocomplete=autocomplete, aria_invalid='true' if field.errors else 'false', aria_describedby=field.id ~ '-errors') }}<div id="{{ field.id }}-errors" class="field-error">{% for error in field.errors %}{{ error }}{% endfor %}</div></div>
+{%- endmacro %}
+{% macro alert(message) -%}<div class="alert" role="alert">{{ message }}</div>{%- endmacro %}
+

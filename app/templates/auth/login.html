@@ -1,18 +1,5 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}{% from "components/macros.html" import field %}
 {% block title %}Connexion{% endblock %}
-{% block content %}
-<h1>Connexion</h1>
-<form method="post" novalidate>
-  {{ form.hidden_tag() }}
-  <p>
-    {{ form.email.label }}<br>
-    {{ form.email(size=40) }}
-  </p>
-  <p>
-    {{ form.password.label }}<br>
-    {{ form.password(size=40) }}
-  </p>
-  <p>{{ form.remember_me.label }} {{ form.remember_me() }}</p>
-  <p>{{ form.submit() }}</p>
-</form>
-{% endblock %}
+{% block content %}<div class="panel"><p class="eyebrow">URAFIKI · ESPACE SCOLAIRE</p><h1>Connexion</h1><p class="muted">Retrouvez vos classes et vos résultats.</p>
+<form method="post" novalidate>{{ form.hidden_tag() }}{{ field(form.email, 'username') }}{{ field(form.password, 'current-password') }}<p>{{ form.remember_me() }} {{ form.remember_me.label }}</p>{{ form.submit() }}</form></div>{% endblock %}
+
