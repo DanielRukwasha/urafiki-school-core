@@ -1,0 +1,23 @@
+﻿{% extends "base.html" %}{% from "components/macros.html" import heading %}
+{% block title %}Saisie · {{ klass.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('portal.dashboard') }}">← Classes et périodes</a>
+{{ heading(klass.academic_year.label ~ ' · ' ~ period.name, klass.name ~ ' — Saisie des cotes', 'Les cotes sont enregistrées automatiquement. Utilisez Tab, Entrée ou les flèches pour naviguer.') }}
+<noscript><div class="alert">Activez JavaScript pour saisir et sauvegarder les cotes.</div></noscript>
+<div id="grade-grid" data-user="{{ current_user.id }}" data-class="{{ klass.id }}" data-period="{{ period.id }}">
+<div class="actions"><span id="sync-summary" role="status" aria-live="polite">Initialisation de la sauvegarde…</span><button type="button" id="retry-sync" class="secondary">Réessayer la synchronisation</button><button type="button" id="export-drafts" class="secondary">Exporter les brouillons</button></div>
+<p class="muted" id="grid-help">Une cote vide est une note manquante, distincte de zéro. Les cotes validées sont verrouillées. Les brouillons restent sur cet appareil jusqu’à confirmation du serveur.</p>
+<div id="storage-warning" class="alert" role="alert" hidden></div>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Grille des cotes défilante">
+<table class="grid-table"><caption>{{ enrollments|length }} élèves · {{ courses|length }} cours · {{ period.name }}</caption>
+<thead><tr><th scope="col">Élève</th>{% for course in courses %}<th scope="col">{{ course.name }}<small>Sur {{ course.max_score }} · Coef. {{ course.coefficient }}</small></th>{% endfor %}</tr></thead>
+<tbody>{% for enrollment in enrollments %}<tr><th scope="row">{{ enrollment.student.full_name }}<small>{{ enrollment.student.matricule }}</small></th>
+{% for course in courses %}{% set grade = grades.get((enrollment.id, course.id)) %}{% set key = enrollment.id ~ '-' ~ course.id %}
+<td data-state="{{ 'saved' if grade else 'empty' }}"><label class="sr-only" for="grade-{{ key }}">{{ enrollment.student.full_name }} · {{ course.name }} · Sur {{ course.max_score }}</label>
+<input disabled class="grade-input" id="grade-{{ key }}" type="text" inputmode="decimal" autocomplete="off" maxlength="12" value="{{ grade.score if grade else '' }}" data-key="{{ key }}" data-enrollment="{{ enrollment.id }}" data-course="{{ course.id }}" data-base="{{ grade.score if grade else '' }}" data-max="{{ course.max_score }}" data-locked="{{ 'true' if grade and (grade.is_validated or grade.is_archived) else 'false' }}" aria-describedby="status-{{ key }}" aria-invalid="false">
+<span class="cell-status" id="status-{{ key }}">{{ 'Verrouillée' if grade and (grade.is_validated or grade.is_archived) else ('Enregistré' if grade else 'Non saisie') }}</span><button type="button" class="secondary discard-cell" data-key="{{ key }}" hidden>Reprendre la cote serveur</button></td>{% endfor %}</tr>
+{% else %}<tr><td colspan="{{ courses|length + 1 }}">Aucun élève inscrit dans cette classe.</td></tr>{% endfor %}</tbody></table></div>
+<form id="sync-form" hx-post="{{ url_for('portal.sync', class_id=klass.id, period_id=period.id) }}" hx-trigger="sync-grades" hx-swap="none" hx-target="#sync-response"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="changes" id="sync-changes"></form><div id="sync-response" hidden></div>
+</div>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='vendor/htmx.min.js') }}" defer></script><script src="{{ url_for('static', filename='js/grade-grid.js') }}" defer></script>{% endblock %}
+

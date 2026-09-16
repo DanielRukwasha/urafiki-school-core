@@ -13,7 +13,7 @@ bp = Blueprint("auth", __name__, url_prefix="/auth")
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("admin.dashboard"))
+        return redirect(url_for("portal.dashboard"))
 
     form = LoginForm()
     if form.validate_on_submit():
@@ -23,7 +23,14 @@ def login():
             user.last_login_at = datetime.now(UTC)
             db.session.commit()
             next_page = request.args.get("next")
-            return redirect(next_page or url_for("admin.dashboard"))
+            if (
+                not next_page
+                or not next_page.startswith("/")
+                or next_page.startswith("//")
+                or "\\" in next_page
+            ):
+                next_page = url_for("portal.dashboard")
+            return redirect(next_page)
         flash("Email ou mot de passe invalide.", "danger")
 
     return render_template("auth/login.html", form=form)
