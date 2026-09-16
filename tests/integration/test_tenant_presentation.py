@@ -40,6 +40,7 @@ def test_login_renders_only_current_identity(client, example_presentations):
         assert other["branding"]["display_name"] not in html
         assert other["branding"]["logo_url"] not in html
         assert "<select" not in html
+        assert '<html lang="fr">' in html
         assert f'lang="{example["branding"]["locale"]}"' in html
 
 
@@ -64,3 +65,67 @@ def test_access_states_are_explicit_and_accessible(app, client, code):
     assert ('id="password"' in html) == (code == "invalid_credentials")
     if code == "rate_limited":
         assert "60 secondes" in html
+
+
+def test_report_editor_preview_does_not_publish(
+    client, db, make_user, course, enrollment, evaluation_period
+):
+    from app.models.grading import Grade
+    from app.models.user import RoleEnum
+
+    user, password = make_user(role=RoleEnum.DIRECTION)
+    client.post("/auth/login", data={"email": user.email, "password": password})
+    prefix = f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}"
+    response = client.get(prefix + "/report-template")
+    assert response.status_code == 200
+    assert b'title="Aper' in response.data
+    response = client.post(
+        prefix + "/report-preview",
+        data={
+            "locale": "en",
+            "orientation": "portrait",
+            "font_size": "10",
+            "header_alignment": "left",
+            "column": ["course", "score"],
+            "label_bulletin_title": "Custom progress report",
+            "legal_text": "<script>alert(1)</script>",
+            "signatures": "Head of school",
+        },
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Custom progress report" in html
+    assert "PREVIEW - NOT OFFICIAL" in html
+    assert "&lt;script&gt;" in html and "<script>alert" not in html
+    assert Grade.query.count() == 0
+
+
+def test_preview_rejects_duplicate_columns(
+    client, make_user, course, enrollment, evaluation_period
+):
+    from app.models.user import RoleEnum
+
+    user, password = make_user(role=RoleEnum.DIRECTION)
+    client.post("/auth/login", data={"email": user.email, "password": password})
+    response = client.post(
+        f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}/report-preview",
+        data={
+            "locale": "fr",
+            "orientation": "portrait",
+            "font_size": "10",
+            "header_alignment": "left",
+            "column": ["course", "course", "score"],
+        },
+    )
+    assert response.status_code == 422
+    assert b'role="alert"' in response.data
+
+
+def test_teacher_cannot_edit_or_preview_template(
+    client, make_user, course, enrollment, evaluation_period
+):
+    user, password = make_user()
+    client.post("/auth/login", data={"email": user.email, "password": password})
+    prefix = f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}"
+    assert client.get(prefix + "/report-template").status_code == 403
+    assert client.get(prefix + "/report-preview").status_code == 403
