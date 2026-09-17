@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% from "components/macros.html" import heading %}
+{% block title %}Décision manuelle{% endblock %}
+{% block content %}{{ heading('DIRECTION', 'Ajouter une décision manuelle', student_name) }}
+<div class="alert" role="alert">La décision automatique restera affichée dans la délibération. Cette saisie ajoute une décision manuelle et son motif.</div>
+<form method="post" class="panel" novalidate><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="field"><label for="manual-decision">Décision manuelle</label><select required id="manual-decision" name="manual_decision"><option value="">Choisir</option>{% for value,label in decision_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div><div class="field"><label for="manual-reason">Motif obligatoire</label><textarea required minlength="10" maxlength="1000" id="manual-reason" name="manual_reason" aria-describedby="reason-help"></textarea><small id="reason-help">Expliquez la décision pour le dossier d’audit.</small></div><button type="submit">Enregistrer la décision manuelle</button></form>
+{% endblock %}

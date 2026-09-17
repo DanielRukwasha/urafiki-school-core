@@ -22,6 +22,7 @@ from app.services.grade_calculation_engine import (
     quantize_percentage,
     rank_students,
 )
+from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidation
 
 bp = Blueprint("portal", __name__, url_prefix="/portal")
 ALL_ROLES = tuple(RoleEnum)
@@ -317,6 +318,76 @@ def result_context(class_id, period_id):
 @roles_required(RoleEnum.DIRECTION, RoleEnum.SECRETARIAT)
 def results(class_id, period_id):
     return render_template("portal/results.html", **result_context(class_id, period_id))
+
+
+def _server_consolidation_payload():
+    """Read a backend-provided payload without deriving a metric in the UI."""
+    from flask import g
+
+    payload = getattr(g, "consolidation_payload", None)
+    if payload is None:
+        abort(503, description="Le service de consolidation n'est pas encore disponible.")
+    try:
+        return normalize_consolidation(payload)
+    except ConsolidationPayloadError:
+        abort(502, description="Réponse de consolidation invalide.")
+
+
+@bp.get("/classes/<int:class_id>/periods/<int:period_id>/consolidation")
+@roles_required(RoleEnum.DIRECTION)
+def consolidation(class_id, period_id):
+    payload = _server_consolidation_payload()
+    return render_template(
+        "portal/consolidation.html",
+        consolidation=payload,
+        deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),
+        preview_url=url_for(
+            "portal.print_report", class_id=class_id, period_id=period_id, kind="bulletins"
+        ),
+    )
+
+
+@bp.get("/classes/<int:class_id>/periods/<int:period_id>/deliberation")
+@roles_required(RoleEnum.DIRECTION)
+def deliberation(class_id, period_id):
+    payload = _server_consolidation_payload()
+    return render_template(
+        "portal/deliberation.html",
+        consolidation=payload,
+        consolidation_url=url_for("portal.consolidation", class_id=class_id, period_id=period_id),
+        deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),
+        decision_filters=(
+            ("ADMITTED", "Admis"),
+            ("DEFERRED", "Ajourné"),
+            ("MANUAL", "À délibérer"),
+        ),
+        active_decision=request.args.get("decision", ""),
+        pagination_controls="",
+    )
+
+
+@bp.get("/audit")
+@roles_required(RoleEnum.DIRECTION)
+def audit_log():
+    from flask import g
+
+    payload = getattr(g, "audit_payload", None)
+    if payload is None:
+        abort(503, description="Le service d'audit n'est pas encore disponible.")
+    return render_template(
+        "portal/audit_log.html",
+        entries=payload.get("entries", []),
+        pagination=payload.get("pagination", {}),
+        pagination_controls="",
+        filters={
+            key: request.args.get(key, "") for key in ("user", "student", "action", "from", "to")
+        },
+        action_filters=(
+            ("CREATE", "Création"),
+            ("UPDATE", "Modification"),
+            ("DELETE", "Suppression"),
+        ),
+    )
 
 
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/print/<kind>")
