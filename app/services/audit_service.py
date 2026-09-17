@@ -23,6 +23,7 @@ def record_grade_change(
     new_value: Decimal | None,
 ) -> GradeAuditLog:
     entry = GradeAuditLog(
+        ecole_id=grade.ecole_id,
         grade_id=grade.id,
         enrollment_id=grade.enrollment_id,
         course_id=grade.course_id,
@@ -39,6 +40,7 @@ def record_grade_change(
 
 def create_grade(
     *,
+    ecole_id: int,
     enrollment_id: int,
     course_id: int,
     period_id: int,
@@ -47,6 +49,7 @@ def create_grade(
     ip_address: str | None,
 ) -> Grade:
     grade = Grade(
+        ecole_id=ecole_id,
         enrollment_id=enrollment_id,
         course_id=course_id,
         period_id=period_id,

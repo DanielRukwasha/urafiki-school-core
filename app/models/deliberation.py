@@ -7,9 +7,10 @@ scientific track requiring a higher average) without touching code.
 
 from app.extensions import db
 from app.models.mixins import SoftDeleteMixin, TimestampMixin
+from app.models.tenant_scope import TenantScopedModel
 
 
-class DeliberationPolicy(db.Model, TimestampMixin, SoftDeleteMixin):
+class DeliberationPolicy(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "deliberation_policies"
     __table_args__ = (
         db.CheckConstraint(

@@ -10,8 +10,15 @@ from app.models.course import Course  # noqa: F401
 from app.models.deliberation import DeliberationPolicy  # noqa: F401
 from app.models.grading import Grade, GradeAuditLog  # noqa: F401
 from app.models.institution import Institution  # noqa: F401
+from app.models.platform import (  # noqa: F401
+    CalculationStrategy,
+    SuperAdmin,
+    TenantAccessAuditLog,
+    TenantAccessEventType,
+)
 from app.models.student import Enrollment, Student  # noqa: F401
 from app.models.teaching import TeacherAssignment  # noqa: F401
+from app.models.tenant_config import TenantConfig  # noqa: F401
 from app.models.user import User  # noqa: F401
 
 __all__ = [
@@ -24,8 +31,13 @@ __all__ = [
     "Grade",
     "GradeAuditLog",
     "Institution",
+    "CalculationStrategy",
+    "SuperAdmin",
+    "TenantAccessAuditLog",
+    "TenantAccessEventType",
     "Enrollment",
     "Student",
     "TeacherAssignment",
+    "TenantConfig",
     "User",
 ]
