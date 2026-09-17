@@ -28,6 +28,15 @@ def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
 def app():
     application = create_app("testing")
     with application.app_context():
+        # drop_all() before create_all(): against a real, persistent
+        # database (CI's Postgres service, reused across the "apply
+        # migrations" step and the test run), a stray seed row from an
+        # earlier step — e.g. the multi-tenant migration's own STANDARD
+        # calculation-strategy row — would otherwise survive create_all()'s
+        # checkfirst=True (which only creates missing tables, never
+        # touches existing data) and collide with this suite's own
+        # fixtures. Always start from a genuinely empty database.
+        _db.drop_all()
         _db.create_all()
         yield application
         _db.session.remove()

@@ -9,6 +9,18 @@ import pytest
 
 from app.models.student import Enrollment, Student
 from app.models.user import RoleEnum
+from app.security.tenant import resolve_tenant
+
+
+@pytest.fixture(autouse=True)
+def _tenant_request_context(app, tenant_a):
+    """Ambient `db.session.add(...)` calls below construct rows directly,
+    outside any HTTP request — push a resolved request context so their
+    `ecole_id` column default sees tenant_a, same as every `client.*()`
+    call already gets via before_request."""
+    with app.test_request_context("/", base_url=f"http://{tenant_a.domain}"):
+        resolve_tenant()
+        yield
 
 
 @pytest.fixture()
