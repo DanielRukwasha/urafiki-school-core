@@ -9,7 +9,10 @@ from app import create_app
 from app.extensions import db as _db
 from app.models.academic import AcademicYear, EvaluationPeriod, SchoolClass, Section
 from app.models.course import Course
+from app.models.institution import Institution
+from app.models.platform import CalculationStrategy
 from app.models.student import Enrollment, Student
+from app.models.tenant_config import TenantConfig
 from app.models.user import RoleEnum, User
 
 
@@ -37,20 +40,91 @@ def db(app):
 
 
 @pytest.fixture()
-def client(app):
+def calculation_strategy_standard(db):
+    strategy = CalculationStrategy(
+        key="STANDARD", description="Moyenne pondérée standard."
+    )
+    db.session.add(strategy)
+    db.session.commit()
+    return strategy
+
+
+@pytest.fixture()
+def tenant_a(db, calculation_strategy_standard):
+    """Institut Mont Carmel — the platform's first, reference tenant."""
+    institution = Institution(
+        name="Institut Mont Carmel",
+        short_code="IMC",
+        domain="montcarmel.testserver",
+    )
+    db.session.add(institution)
+    db.session.commit()
+
+    db.session.add(
+        TenantConfig(
+            ecole_id=institution.id,
+            calculation_strategy_key="STANDARD",
+            percentage_decimal_places=2,
+            mentions=[{"min_percent": "80", "max_percent": "100", "label": "Excellence"}],
+            eliminatory_course_codes=[],
+            max_allowed_failures=None,
+            report_signatures=[],
+            feature_flags={},
+        )
+    )
+    db.session.commit()
+    return institution
+
+
+@pytest.fixture()
+def tenant_b(db, calculation_strategy_standard):
+    """Lycée Kasa-Vubu — a second tenant with deliberately different
+    grading configuration, so isolation/leak tests have something real to
+    catch: a different rounding precision, eliminatory courses Mont Carmel
+    doesn't have, and a tolerated-failures rule Mont Carmel doesn't use.
+    """
+    institution = Institution(
+        name="Lycée Kasa-Vubu",
+        short_code="LKV",
+        domain="kasavubu.testserver",
+    )
+    db.session.add(institution)
+    db.session.commit()
+
+    db.session.add(
+        TenantConfig(
+            ecole_id=institution.id,
+            calculation_strategy_key="STANDARD",
+            percentage_decimal_places=1,
+            mentions=[{"min_percent": "70", "max_percent": "100", "label": "Tableau d'honneur"}],
+            eliminatory_course_codes=["EPS"],
+            max_allowed_failures=2,
+            report_signatures=[],
+            feature_flags={"bulletins_bilingues": True},
+        )
+    )
+    db.session.commit()
+    return institution
+
+
+@pytest.fixture()
+def client(app, tenant_a):
+    app.config["SERVER_NAME"] = tenant_a.domain
     return app.test_client()
 
 
 @pytest.fixture()
-def make_user(db):
+def make_user(db, tenant_a):
     def _make_user(
         email="user@example.com",
         role=RoleEnum.ENSEIGNANT,
         password="Password123!",
         first_name="Jean",
         last_name="Dupont",
+        ecole_id=None,
     ):
         user = User(
+            ecole_id=ecole_id if ecole_id is not None else tenant_a.id,
             email=email,
             role=role,
             first_name=first_name,
@@ -65,8 +139,9 @@ def make_user(db):
 
 
 @pytest.fixture()
-def academic_year(db):
+def academic_year(db, tenant_a):
     year = AcademicYear(
+        ecole_id=tenant_a.id,
         label="2025-2026",
         start_date=datetime.date(2025, 9, 1),
         end_date=datetime.date(2026, 6, 30),
@@ -78,16 +153,17 @@ def academic_year(db):
 
 
 @pytest.fixture()
-def section(db):
-    sec = Section(name="Scientifique", code="SCI")
+def section(db, tenant_a):
+    sec = Section(ecole_id=tenant_a.id, name="Scientifique", code="SCI")
     db.session.add(sec)
     db.session.commit()
     return sec
 
 
 @pytest.fixture()
-def school_class(db, academic_year, section):
+def school_class(db, tenant_a, academic_year, section):
     klass = SchoolClass(
+        ecole_id=tenant_a.id,
         academic_year_id=academic_year.id,
         section_id=section.id,
         name="6eme A",
@@ -99,8 +175,9 @@ def school_class(db, academic_year, section):
 
 
 @pytest.fixture()
-def evaluation_period(db, academic_year):
+def evaluation_period(db, tenant_a, academic_year):
     period = EvaluationPeriod(
+        ecole_id=tenant_a.id,
         academic_year_id=academic_year.id,
         name="1er Trimestre",
         sequence_order=1,
@@ -114,8 +191,9 @@ def evaluation_period(db, academic_year):
 
 
 @pytest.fixture()
-def course(db, school_class):
+def course(db, tenant_a, school_class):
     c = Course(
+        ecole_id=tenant_a.id,
         school_class_id=school_class.id,
         name="Mathematiques",
         code="MATH",
@@ -128,16 +206,17 @@ def course(db, school_class):
 
 
 @pytest.fixture()
-def student(db):
-    s = Student(matricule="IMC-0001", first_name="Alice", last_name="Mwamba")
+def student(db, tenant_a):
+    s = Student(ecole_id=tenant_a.id, matricule="IMC-0001", first_name="Alice", last_name="Mwamba")
     db.session.add(s)
     db.session.commit()
     return s
 
 
 @pytest.fixture()
-def enrollment(db, student, school_class, academic_year):
+def enrollment(db, tenant_a, student, school_class, academic_year):
     e = Enrollment(
+        ecole_id=tenant_a.id,
         student_id=student.id,
         school_class_id=school_class.id,
         academic_year_id=academic_year.id,

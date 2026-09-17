@@ -9,6 +9,19 @@ from app.models.grading import Grade, GradeAuditLog
 from app.models.mixins import utcnow
 from app.models.teaching import TeacherAssignment
 from app.models.user import RoleEnum
+from app.security.tenant import resolve_tenant
+
+
+@pytest.fixture(autouse=True)
+def _tenant_request_context(app, tenant_a):
+    """Ambient `Model.query` calls below run outside any HTTP request —
+    push a resolved request context so they see tenant_a's data, same as
+    every `client.*()` call already gets via before_request. Each
+    `client.*()` call still pushes and resolves its own request context on
+    top of this one, so nothing here changes what the app itself sees."""
+    with app.test_request_context("/", base_url=f"http://{tenant_a.domain}"):
+        resolve_tenant()
+        yield
 
 
 @pytest.fixture()
