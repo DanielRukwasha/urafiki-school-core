@@ -8,6 +8,14 @@ from app.models.academic import (  # noqa: F401,E501
 )
 from app.models.course import Course  # noqa: F401
 from app.models.deliberation import DeliberationPolicy  # noqa: F401
+from app.models.deliberation_workflow import (  # noqa: F401
+    DeliberationAction,
+    DeliberationAuditLog,
+    DeliberationOverride,
+    ManualDecision,
+    PeriodPublication,
+    PublicationStatus,
+)
 from app.models.grading import Grade, GradeAuditLog  # noqa: F401
 from app.models.institution import Institution  # noqa: F401
 from app.models.platform import (  # noqa: F401
@@ -28,6 +36,12 @@ __all__ = [
     "SchoolClass",
     "Course",
     "DeliberationPolicy",
+    "DeliberationAction",
+    "DeliberationAuditLog",
+    "DeliberationOverride",
+    "ManualDecision",
+    "PeriodPublication",
+    "PublicationStatus",
     "Grade",
     "GradeAuditLog",
     "Institution",

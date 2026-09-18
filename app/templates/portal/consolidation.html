@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "components/macros.html" import heading %}
+{% block title %}Consolidation · {{ consolidation.class_name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('portal.dashboard') }}">← Classes et périodes</a>
+{{ heading(consolidation.academic_year ~ ' · ' ~ consolidation.period_name, consolidation.class_name ~ ' — Consolidation', 'Les indicateurs et décisions affichés viennent du serveur.') }}
+{% if consolidation.blocking_items %}
+<section class="alert alert-blocking" aria-labelledby="blocking-title"><h2 id="blocking-title">Consolidation bloquée</h2><ul>{% for item in consolidation.blocking_items %}<li>{{ item.label }}{% if item.owner %} · Responsable : {{ item.owner }}{% endif %}</li>{% endfor %}</ul></section>
+{% else %}<div class="alert alert-success" role="status">Aucun blocage signalé par le serveur.</div>{% endif %}
+<section class="metric-grid" aria-label="Synthèse de la classe">
+{% for metric in [('Taux d’encodage', consolidation.encoding_rate), ('Moyenne de classe', consolidation.class_average), ('Élèves sans cote', consolidation.students_without_grade), ('Version', consolidation.publication.version)] %}<div class="metric-card"><span>{{ metric[0] }}</span><strong>{{ metric[1] if metric[1] is not none else '—' }}</strong></div>{% endfor %}
+</section>
+<section class="panel"><h2>Encodage par cours</h2><div class="table-wrap"><table><caption class="sr-only">État des notes par cours</caption><thead><tr><th scope="col">Cours</th><th scope="col">Taux fourni</th><th scope="col">Notes</th><th scope="col">État</th></tr></thead><tbody>{% for course in consolidation.courses %}<tr><th scope="row">{{ course.name }}</th><td>{{ course.encoding_rate }}</td><td>{{ course.entered }} / {{ course.expected }}</td><td><span class="status-label status-{{ course.status }}">{{ course.status_label }}</span></td></tr>{% else %}<tr><td colspan="4">Aucun cours transmis.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="panel"><h2>Distribution des résultats</h2><div class="distribution" aria-label="Distribution calculée par le serveur">{% for bucket in consolidation.distribution %}<div class="distribution-row"><span>{{ bucket.label }}</span><strong>{{ bucket.count }}</strong><span>{{ bucket.percent }}</span></div>{% else %}<p class="muted">Aucune distribution transmise.</p>{% endfor %}</div></section>
+{% if transitions %}<section class="panel"><h2>Étape suivante</h2>{% for t in transitions %}<form method="post" action="{{ t.url }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>{{ t.consequence }}</p><button type="submit" {% if t.irreversible %}onclick="return confirm('{{ t.label }} — cette étape est irréversible. Continuer ?')"{% endif %}>{{ t.label }}</button></form>{% endfor %}</section>{% endif %}
+<p class="actions"><a class="button" href="{{ deliberation_url }}">Ouvrir la délibération</a><a class="button secondary" href="{{ preview_url }}">Aperçu non officiel</a></p>
+{% endblock %}
