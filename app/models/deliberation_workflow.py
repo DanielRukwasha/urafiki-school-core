@@ -62,9 +62,10 @@ class DeliberationOverride(db.Model, TenantScopedModel, TimestampMixin):
 
 
 class PublicationStatus(str, enum.Enum):
-    DRAFT = "DRAFT"
+    DRAFT = "DRAFT"  # encodage en cours
+    SUBMITTED = "SUBMITTED"  # soumis par le titulaire
     CONSOLIDATED = "CONSOLIDATED"
-    VALIDATED = "VALIDATED"
+    VALIDATED = "VALIDATED"  # validé par la direction
     PUBLISHED = "PUBLISHED"
 
 
@@ -73,12 +74,19 @@ class PublicationStatus(str, enum.Enum):
 # deliberately no "unpublish": a published version is the one families
 # see, and un-publishing it is a policy decision for a later issue, not
 # an implicit side effect of this state machine.
+#
+# "submit" belongs to the class's titulaire (a per-class scope, never a
+# global role — see SchoolClass.titulaire_id); "consolidate"/"validate"/
+# "publish" stay DIRECTION-only. Actor authorization lives in the route
+# layer (it needs the class, not just the action name), not here.
 NEXT_STATUS = {
-    PublicationStatus.DRAFT: PublicationStatus.CONSOLIDATED,
+    PublicationStatus.DRAFT: PublicationStatus.SUBMITTED,
+    PublicationStatus.SUBMITTED: PublicationStatus.CONSOLIDATED,
     PublicationStatus.CONSOLIDATED: PublicationStatus.VALIDATED,
     PublicationStatus.VALIDATED: PublicationStatus.PUBLISHED,
 }
 TRANSITION_ACTION_FOR_STATUS = {
+    PublicationStatus.SUBMITTED: "submit",
     PublicationStatus.CONSOLIDATED: "consolidate",
     PublicationStatus.VALIDATED: "validate",
     PublicationStatus.PUBLISHED: "publish",
@@ -114,6 +122,7 @@ class PeriodPublication(db.Model, TenantScopedModel, TimestampMixin):
         db.Enum(PublicationStatus), nullable=False, default=PublicationStatus.DRAFT
     )
     version = db.Column(db.Integer, nullable=False, default=0)
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
     consolidated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     validated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     published_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -131,6 +140,7 @@ class PeriodPublication(db.Model, TenantScopedModel, TimestampMixin):
 
 class DeliberationAction(str, enum.Enum):
     MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
+    SUBMIT = "SUBMIT"
     CONSOLIDATE = "CONSOLIDATE"
     VALIDATE = "VALIDATE"
     PUBLISH = "PUBLISH"

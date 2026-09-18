@@ -70,11 +70,20 @@ class SchoolClass(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     )
     name = db.Column(db.String(100), nullable=False)  # e.g. "6ème A"
     level_order = db.Column(db.Integer, nullable=False, default=0)
+    # The homeroom teacher — a per-class scope, never a global role. A
+    # teacher can be titulaire of this class and a plain course
+    # attributaire (via TeacherAssignment) in another; nothing about being
+    # titulaire is stored on the User account itself. Nullable: not every
+    # class has one assigned yet.
+    titulaire_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
+    )
 
     academic_year = db.relationship("AcademicYear", back_populates="school_classes")
     section = db.relationship("Section", back_populates="school_classes")
     courses = db.relationship("Course", back_populates="school_class")
     enrollments = db.relationship("Enrollment", back_populates="school_class")
+    titulaire = db.relationship("User", foreign_keys=[titulaire_id])
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<SchoolClass {self.name}>"

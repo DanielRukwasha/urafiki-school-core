@@ -368,11 +368,14 @@ def apply_override(*, enrollment_id, period_id, school_class_id, decision, reaso
 
 
 def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPublication:
-    """Advance the class/period one step: draft -> consolidated ->
-    validated -> published, strictly in order. `action` is one of
-    "consolidate", "validate", "publish"; any other value, or a jump that
-    skips a step, raises TransitionError rather than silently doing
-    nothing or guessing what was meant."""
+    """Advance the class/period one step: draft -> submitted ->
+    consolidated -> validated -> published, strictly in order. `action` is
+    one of "submit", "consolidate", "validate", "publish"; any other
+    value, or a jump that skips a step, raises TransitionError rather
+    than silently doing nothing or guessing what was meant. Actor
+    authorization (titulaire-only for "submit", DIRECTION for the rest)
+    is the route layer's job — it has the request's user and the class,
+    this function only knows the workflow's own rules."""
     publication = _publication(school_class_id, period_id)
     current_status = publication.status if publication is not None else PublicationStatus.DRAFT
     expected_next = NEXT_STATUS.get(current_status)
@@ -394,7 +397,9 @@ def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPubli
     old_status = publication.status
     now = utcnow()
     publication.status = expected_next
-    if expected_next == PublicationStatus.CONSOLIDATED:
+    if expected_next == PublicationStatus.SUBMITTED:
+        publication.submitted_at = now
+    elif expected_next == PublicationStatus.CONSOLIDATED:
         publication.consolidated_at = now
     elif expected_next == PublicationStatus.VALIDATED:
         publication.validated_at = now

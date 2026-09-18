@@ -212,16 +212,25 @@ def test_override_persists_and_is_audited(
     assert b"decision-manual" in page
 
 
-def test_consolidate_blocked_while_encoding_incomplete(
+def test_submit_blocked_while_encoding_incomplete(
     client, db, make_user, deliberation_policy, school_class, evaluation_period, course, enrollment
 ):
     user, password = make_user(role=RoleEnum.DIRECTION)
     login(client, user.email, password)
     response = client.post(
-        f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/consolidation/consolidate"
+        f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/consolidation/submit"
     )
     assert response.status_code == 409
     assert PeriodPublication.query.execution_options(skip_tenant_filter=True).count() == 0
+
+
+def test_only_the_titulaire_or_direction_may_submit(
+    client, db, make_user, deliberation_policy, school_class, evaluation_period, course, enrollment
+):
+    teacher, password = make_user(email="teacher@example.com")
+    login(client, teacher.email, password)
+    base = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/consolidation"
+    assert client.post(f"{base}/submit").status_code == 403
 
 
 def test_full_transition_sequence_increments_version_only_on_publish(
@@ -231,6 +240,11 @@ def test_full_transition_sequence_increments_version_only_on_publish(
     _grade(db, enrollment, course, evaluation_period, "15", user)
     login(client, user.email, password)
     base = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/consolidation"
+
+    assert client.post(f"{base}/submit").status_code == 302
+    publication = PeriodPublication.query.execution_options(skip_tenant_filter=True).one()
+    assert publication.status.value == "SUBMITTED"
+    assert publication.submitted_at is not None
 
     assert client.post(f"{base}/consolidate").status_code == 302
     publication = PeriodPublication.query.execution_options(skip_tenant_filter=True).one()
@@ -244,6 +258,27 @@ def test_full_transition_sequence_increments_version_only_on_publish(
     published = PeriodPublication.query.execution_options(skip_tenant_filter=True).one()
     assert published.status.value == "PUBLISHED"
     assert published.version == 1
+
+
+def test_titulaire_can_submit_but_not_consolidate(
+    client, db, make_user, deliberation_policy, school_class, evaluation_period, course, enrollment
+):
+    teacher, password = make_user(email="titulaire@example.com")
+    school_class.titulaire_id = teacher.id
+    db.session.commit()
+    director, _ = make_user(email="direction@example.com", role=RoleEnum.DIRECTION)
+    _grade(db, enrollment, course, evaluation_period, "15", director)
+
+    login(client, teacher.email, password)
+    base = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/consolidation"
+    assert client.post(f"{base}/submit").status_code == 302
+    assert (
+        PeriodPublication.query.execution_options(skip_tenant_filter=True).one().status.value
+        == "SUBMITTED"
+    )
+    # The titulaire's rights stop at "submit" — consolidate/validate/publish
+    # stay DIRECTION-only, even for the class's own titulaire.
+    assert client.post(f"{base}/consolidate").status_code == 403
 
 
 def test_transition_out_of_order_is_rejected(
@@ -265,6 +300,7 @@ def test_override_rejected_once_period_is_published(
     _grade(db, enrollment, course, evaluation_period, "15", user)
     login(client, user.email, password)
     base = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
+    client.post(f"{base}/consolidation/submit")
     client.post(f"{base}/consolidation/consolidate")
     client.post(f"{base}/consolidation/validate")
     client.post(f"{base}/consolidation/publish")
