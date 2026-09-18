@@ -535,13 +535,18 @@ def upgrade():
     # 5. grades: course_id -> grille_cours_ligne_id; score nullable;
     #    new appreciation/statut columns.
     # ------------------------------------------------------------------
+    # A column-level ADD COLUMN (unlike a full CREATE TABLE) never emits
+    # CREATE TYPE for its enum on its own — create the Postgres type
+    # explicitly first (a harmless no-op on SQLite, which has no native
+    # enum type to create).
+    grade_statut_enum = sa.Enum('ABSENCE_JUSTIFIEE', 'DISPENSE', name='gradestatut')
+    grade_statut_enum.create(conn, checkfirst=True)
+
     with op.batch_alter_table('grades', schema=None) as batch_op:
         batch_op.add_column(sa.Column('grille_cours_ligne_id', sa.Integer(), nullable=True))
         batch_op.add_column(sa.Column('appreciation', sa.String(length=500), nullable=True))
         batch_op.add_column(
-            sa.Column(
-                'statut', sa.Enum('ABSENCE_JUSTIFIEE', 'DISPENSE', name='gradestatut'), nullable=True
-            )
+            sa.Column('statut', grade_statut_enum, nullable=True)
         )
 
     grades_t = sa.table(
