@@ -37,7 +37,8 @@ def pdf_runtime():
 
 @pytest.mark.parametrize("kind,count", [("bulletins", 2), ("palmares", 65)])
 def test_a4_reports_paginate(
-    client, db, make_user, course, enrollment, evaluation_period, pdf_runtime, kind, count
+    client, db, make_user, school_class, grille_ligne, enrollment, evaluation_period,
+    pdf_runtime, kind, count,
 ):
     user, password = make_user(role=RoleEnum.DIRECTION)
     client.post("/auth/login", data={"email": user.email, "password": password})
@@ -52,14 +53,14 @@ def test_a4_reports_paginate(
         db.session.add(
             Enrollment(
                 student_id=pupil.id,
-                school_class_id=course.school_class_id,
+                school_class_id=school_class.id,
                 academic_year_id=enrollment.academic_year_id,
                 enrollment_date=datetime.date(2025, 9, 1),
             )
         )
     db.session.commit()
     response = client.get(
-        f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}/print/{kind}?format=pdf"
+        f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/print/{kind}?format=pdf"
     )
     assert response.status_code == 200
     assert response.content_type == "application/pdf"
