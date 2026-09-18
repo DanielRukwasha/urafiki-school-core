@@ -64,24 +64,48 @@ def quantize_percentage(value: Decimal, decimal_places: int = 2) -> Decimal:
 
 @dataclass(frozen=True)
 class CourseGradeInput:
-    """One course's contribution to a period, for a single student.
+    """One grid line's contribution to a period, for a single student.
 
     ``score`` is ``None`` when the grade has not been entered yet — this is
     the "missing grade" case, explicitly distinct from a score of 0.
+
+    ``included`` is resolved by the caller from the grid (combining
+    ``GrilleCoursLigne.entre_dans_total_general`` with the same flag on its
+    ``GroupeCours`` — a group excluded from the general total excludes every
+    line in it regardless of that line's own flag; see
+    app/services/grille_service.py). This module has no knowledge of grids,
+    groups, or levels — it only reacts to the booleans it's handed.
+
+    ``is_numeric`` mirrors ``GrilleCoursLigne.note_par_appreciation`` (its
+    negation): an appreciation-only line never contributes to a weighted
+    numeric total, however ``included`` is set.
     """
 
-    course_id: int
+    ligne_id: int
+    groupe_id: int
     coefficient: Decimal
-    max_score: Decimal
+    max_score: Decimal | None
     score: Decimal | None
+    appreciation: str | None = None
+    included: bool = True
+    is_numeric: bool = True
 
 
 @dataclass(frozen=True)
 class CourseBreakdown:
-    course_id: int
+    ligne_id: int
+    groupe_id: int
     weighted_points: Decimal
     weighted_possible: Decimal
     included: bool
+
+
+@dataclass(frozen=True)
+class GroupSubtotal:
+    groupe_id: int
+    weighted_points: Decimal
+    weighted_possible: Decimal
+    percentage: Decimal | None
 
 
 @dataclass(frozen=True)
@@ -120,28 +144,32 @@ class RankedEntry:
 
 
 def validate_course_grade(grade_input: CourseGradeInput) -> None:
-    """Validate structural invariants of a single course grade.
+    """Validate structural invariants of a single grid line's grade.
 
-    Raises InvalidGradeError for a non-positive max_score (a data integrity
-    problem, never a valid state) or for a score outside [0, max_score].
-    A ``score`` of ``None`` (missing grade) is always valid — it simply
-    means "not graded yet".
+    An appreciation-only line (``is_numeric`` False) is never validated
+    numerically — it has no ``max_score`` to be bound by. Raises
+    InvalidGradeError for a non-positive max_score on a numeric line (a
+    data integrity problem, never a valid state) or for a score outside
+    [0, max_score]. A ``score`` of ``None`` (missing grade) is always
+    valid — it simply means "not graded yet".
     """
-    if grade_input.max_score <= 0:
+    if not grade_input.is_numeric:
+        return
+    if grade_input.max_score is None or grade_input.max_score <= 0:
         raise InvalidGradeError(
-            f"course {grade_input.course_id}: max_score must be > 0, "
+            f"ligne {grade_input.ligne_id}: max_score must be > 0, "
             f"got {grade_input.max_score}"
         )
     if grade_input.coefficient <= 0:
         raise InvalidGradeError(
-            f"course {grade_input.course_id}: coefficient must be > 0, "
+            f"ligne {grade_input.ligne_id}: coefficient must be > 0, "
             f"got {grade_input.coefficient}"
         )
     if grade_input.score is None:
         return
     if grade_input.score < 0 or grade_input.score > grade_input.max_score:
         raise InvalidGradeError(
-            f"course {grade_input.course_id}: score {grade_input.score} out of "
+            f"ligne {grade_input.ligne_id}: score {grade_input.score} out of "
             f"range [0, {grade_input.max_score}]"
         )
 
@@ -162,10 +190,16 @@ def compute_period_total(
     for course_grade in course_grades:
         validate_course_grade(course_grade)
 
-        if course_grade.score is None:
+        contributes = (
+            course_grade.included
+            and course_grade.is_numeric
+            and course_grade.score is not None
+        )
+        if not contributes:
             breakdown.append(
                 CourseBreakdown(
-                    course_id=course_grade.course_id,
+                    ligne_id=course_grade.ligne_id,
+                    groupe_id=course_grade.groupe_id,
                     weighted_points=Decimal(0),
                     weighted_possible=Decimal(0),
                     included=False,
@@ -180,7 +214,8 @@ def compute_period_total(
         weighted_possible += course_weighted_possible
         breakdown.append(
             CourseBreakdown(
-                course_id=course_grade.course_id,
+                ligne_id=course_grade.ligne_id,
+                groupe_id=course_grade.groupe_id,
                 weighted_points=course_weighted_points,
                 weighted_possible=course_weighted_possible,
                 included=True,
@@ -198,6 +233,44 @@ def compute_period_total(
         percentage=percentage,
         course_breakdown=tuple(breakdown),
     )
+
+
+def compute_group_subtotals(
+    course_breakdown: tuple[CourseBreakdown, ...],
+) -> tuple[GroupSubtotal, ...]:
+    """Roll a period's line-level breakdown up into per-group subtotals,
+    preserving first-seen group order. A line excluded from the general
+    total (``included`` False on its ``CourseBreakdown``) never
+    contributes to its group's subtotal either — exclusion at the line or
+    group level in the grid propagates identically here.
+    """
+    totals: dict[int, tuple[Decimal, Decimal]] = {}
+    order: list[int] = []
+    for entry in course_breakdown:
+        if not entry.included:
+            continue
+        if entry.groupe_id not in totals:
+            totals[entry.groupe_id] = (Decimal(0), Decimal(0))
+            order.append(entry.groupe_id)
+        points, possible = totals[entry.groupe_id]
+        totals[entry.groupe_id] = (
+            points + entry.weighted_points,
+            possible + entry.weighted_possible,
+        )
+
+    subtotals = []
+    for groupe_id in order:
+        points, possible = totals[groupe_id]
+        percentage = (points / possible) * Decimal(100) if possible > 0 else None
+        subtotals.append(
+            GroupSubtotal(
+                groupe_id=groupe_id,
+                weighted_points=points,
+                weighted_possible=possible,
+                percentage=percentage,
+            )
+        )
+    return tuple(subtotals)
 
 
 def compute_annual_total(

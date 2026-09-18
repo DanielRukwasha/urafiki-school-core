@@ -16,7 +16,14 @@ from app.models.deliberation_workflow import (  # noqa: F401
     PeriodPublication,
     PublicationStatus,
 )
-from app.models.grading import Grade, GradeAuditLog  # noqa: F401
+from app.models.grading import Grade, GradeAuditAction, GradeAuditLog, GradeStatut  # noqa: F401
+from app.models.grille import (  # noqa: F401
+    GrilleCours,
+    GrilleCoursLigne,
+    GrilleCoursLigneMaximum,
+    GroupeCours,
+    Niveau,
+)
 from app.models.institution import Institution  # noqa: F401
 from app.models.platform import (  # noqa: F401
     CalculationStrategy,
@@ -27,6 +34,13 @@ from app.models.platform import (  # noqa: F401
 from app.models.student import Enrollment, Student  # noqa: F401
 from app.models.teaching import TeacherAssignment  # noqa: F401
 from app.models.tenant_config import TenantConfig  # noqa: F401
+from app.models.titulariat import (  # noqa: F401
+    DelegationTitulariat,
+    DemandeCorrection,
+    StatutDelegation,
+    StatutDemandeCorrection,
+    TitulaireHistorique,
+)
 from app.models.user import User  # noqa: F401
 
 __all__ = [
@@ -44,6 +58,13 @@ __all__ = [
     "PublicationStatus",
     "Grade",
     "GradeAuditLog",
+    "GradeAuditAction",
+    "GradeStatut",
+    "Niveau",
+    "GroupeCours",
+    "GrilleCours",
+    "GrilleCoursLigne",
+    "GrilleCoursLigneMaximum",
     "Institution",
     "CalculationStrategy",
     "SuperAdmin",
@@ -53,5 +74,10 @@ __all__ = [
     "Student",
     "TeacherAssignment",
     "TenantConfig",
+    "TitulaireHistorique",
+    "DelegationTitulariat",
+    "DemandeCorrection",
+    "StatutDelegation",
+    "StatutDemandeCorrection",
     "User",
 ]

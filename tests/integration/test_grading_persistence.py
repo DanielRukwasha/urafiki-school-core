@@ -8,13 +8,13 @@ from app.services import audit_service
 
 
 def test_duplicate_grade_for_same_course_and_period_is_rejected(
-    db, enrollment, course, evaluation_period, make_user
+    db, enrollment, grille_ligne, evaluation_period, make_user
 ):
     user, _ = make_user(email="teacher@example.com")
     audit_service.create_grade(
         ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
-        course_id=course.id,
+        grille_cours_ligne_id=grille_ligne.id,
         period_id=evaluation_period.id,
         score=Decimal("15"),
         entered_by_id=user.id,
@@ -26,7 +26,7 @@ def test_duplicate_grade_for_same_course_and_period_is_rejected(
         audit_service.create_grade(
             ecole_id=enrollment.ecole_id,
             enrollment_id=enrollment.id,
-            course_id=course.id,
+            grille_cours_ligne_id=grille_ligne.id,
             period_id=evaluation_period.id,
             score=Decimal("12"),
             entered_by_id=user.id,
@@ -36,13 +36,13 @@ def test_duplicate_grade_for_same_course_and_period_is_rejected(
 
 
 def test_negative_score_violates_check_constraint(
-    db, enrollment, course, evaluation_period, make_user
+    db, enrollment, grille_ligne, evaluation_period, make_user
 ):
     user, _ = make_user(email="teacher@example.com")
     grade = Grade(
         ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
-        course_id=course.id,
+        grille_cours_ligne_id=grille_ligne.id,
         period_id=evaluation_period.id,
         score=Decimal("-5"),
         entered_by_id=user.id,
@@ -53,12 +53,12 @@ def test_negative_score_violates_check_constraint(
     db.session.rollback()
 
 
-def test_create_grade_writes_audit_log(db, enrollment, course, evaluation_period, make_user):
+def test_create_grade_writes_audit_log(db, enrollment, grille_ligne, evaluation_period, make_user):
     user, _ = make_user(email="teacher@example.com")
     grade = audit_service.create_grade(
         ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
-        course_id=course.id,
+        grille_cours_ligne_id=grille_ligne.id,
         period_id=evaluation_period.id,
         score=Decimal("14"),
         entered_by_id=user.id,
@@ -79,13 +79,13 @@ def test_create_grade_writes_audit_log(db, enrollment, course, evaluation_period
 
 
 def test_update_grade_writes_audit_log_with_old_and_new_value(
-    db, enrollment, course, evaluation_period, make_user
+    db, enrollment, grille_ligne, evaluation_period, make_user
 ):
     user, _ = make_user(email="teacher@example.com")
     grade = audit_service.create_grade(
         ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
-        course_id=course.id,
+        grille_cours_ligne_id=grille_ligne.id,
         period_id=evaluation_period.id,
         score=Decimal("10"),
         entered_by_id=user.id,
@@ -93,8 +93,8 @@ def test_update_grade_writes_audit_log_with_old_and_new_value(
     )
     db.session.commit()
 
-    audit_service.update_grade_score(
-        grade=grade, new_score=Decimal("17"), user_id=user.id, ip_address="10.0.0.6"
+    audit_service.update_grade_content(
+        grade=grade, score=Decimal("17"), user_id=user.id, ip_address="10.0.0.6"
     )
     db.session.commit()
 
@@ -112,13 +112,13 @@ def test_update_grade_writes_audit_log_with_old_and_new_value(
 
 
 def test_delete_grade_keeps_audit_log_with_snapshot(
-    db, enrollment, course, evaluation_period, make_user
+    db, enrollment, grille_ligne, evaluation_period, make_user
 ):
     user, _ = make_user(email="teacher@example.com")
     grade = audit_service.create_grade(
         ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
-        course_id=course.id,
+        grille_cours_ligne_id=grille_ligne.id,
         period_id=evaluation_period.id,
         score=Decimal("8"),
         entered_by_id=user.id,
@@ -135,7 +135,7 @@ def test_delete_grade_keeps_audit_log_with_snapshot(
         GradeAuditLog.query.execution_options(skip_tenant_filter=True)
         .filter_by(
             enrollment_id=enrollment.id,
-            course_id=course.id,
+            grille_cours_ligne_id=grille_ligne.id,
             period_id=evaluation_period.id,
         )
         .all()
@@ -144,3 +144,20 @@ def test_delete_grade_keeps_audit_log_with_snapshot(
     delete_log = next(log for log in logs if log.action == GradeAuditAction.DELETE)
     assert delete_log.grade_id is None
     assert delete_log.old_value == Decimal("8")
+
+
+def test_appreciation_and_score_are_mutually_exclusive(
+    db, enrollment, grille_ligne, evaluation_period, make_user
+):
+    user, _ = make_user(email="teacher@example.com")
+    with pytest.raises(audit_service.InvalidGradeContentError):
+        audit_service.create_grade(
+            ecole_id=enrollment.ecole_id,
+            enrollment_id=enrollment.id,
+            grille_cours_ligne_id=grille_ligne.id,
+            period_id=evaluation_period.id,
+            score=Decimal("14"),
+            appreciation="Bon travail",
+            entered_by_id=user.id,
+            ip_address="127.0.0.1",
+        )

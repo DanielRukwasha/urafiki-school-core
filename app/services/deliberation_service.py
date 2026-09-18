@@ -50,6 +50,7 @@ from app.services.grade_calculation_engine import (
     quantize_percentage,
     rank_students,
 )
+from app.services.grille_service import GrilleConfigError, maximum_pour_periode
 
 AUTOMATIC_LABELS = {"ADMITTED": "Admis", "DEFERRED": "Ajourné", "MANUAL": "À délibérer"}
 MANUAL_LABELS = {"ADMITTED": "Admis", "DEFERRED": "Ajourné"}
@@ -104,8 +105,8 @@ def _publication(school_class_id: int, period_id: int) -> PeriodPublication | No
 
 
 @dataclass(frozen=True)
-class _CourseState:
-    course: object
+class _LigneState:
+    ligne: object
     entered: int
     expected: int
 
@@ -114,23 +115,34 @@ class _CourseState:
         return self.entered >= self.expected
 
 
-def compute_class_consolidation(school_class, period, courses, enrollments) -> dict:
+def _est_encodee(grade) -> bool:
+    """A grade counts as "encoded" for progress purposes as soon as it
+    carries a score, an appreciation, or an explanatory statut (justified
+    absence, exemption) — a row that exists but carries none of those
+    three is not yet encoded."""
+    if grade is None:
+        return False
+    return grade.score is not None or grade.appreciation is not None or grade.statut is not None
+
+
+def compute_class_consolidation(school_class, period, grille_lignes, enrollments) -> dict:
     """The full consolidation/deliberation payload for one class/period,
     matching `app.ui.consolidation.normalize_consolidation`'s contract
-    exactly. `courses`/`enrollments` are passed in (already filtered to
-    active, non-archived rows) rather than re-queried here, so the portal
-    routes and this service always agree on which students/courses are in
-    scope."""
+    exactly. `grille_lignes`/`enrollments` are passed in (already
+    filtered to active, non-archived rows, from
+    `app.services.grille_service`) rather than re-queried here, so the
+    portal routes and this service always agree on which students/grid
+    lines are in scope."""
     threshold = _passing_threshold(school_class)
     config = _tenant_config()
     eliminatory_codes = set(config.eliminatory_course_codes) if config else set()
     max_failures = config.max_allowed_failures if config else None
 
     grades = {
-        (g.enrollment_id, g.course_id): g
+        (g.enrollment_id, g.grille_cours_ligne_id): g
         for g in Grade.query.filter(
             Grade.enrollment_id.in_([e.id for e in enrollments]),
-            Grade.course_id.in_([c.id for c in courses]),
+            Grade.grille_cours_ligne_id.in_([ligne.id for ligne in grille_lignes]),
             Grade.period_id == period.id,
             Grade.archived_at.is_(None),
         ).all()
@@ -143,31 +155,47 @@ def compute_class_consolidation(school_class, period, courses, enrollments) -> d
         ).all()
     }
 
-    course_states = [
-        _CourseState(
-            course=course,
-            entered=sum(1 for e in enrollments if (e.id, course.id) in grades),
+    ligne_states = [
+        _LigneState(
+            ligne=ligne,
+            entered=sum(
+                1 for e in enrollments if _est_encodee(grades.get((e.id, ligne.id)))
+            ),
             expected=len(enrollments),
         )
-        for course in courses
+        for ligne in grille_lignes
     ]
-    course_codes = {course.id: course.code for course in courses}
+    course_codes = {ligne.id: ligne.cours.code for ligne in grille_lignes}
+    try:
+        maxima = {
+            ligne.id: (
+                None if ligne.note_par_appreciation else maximum_pour_periode(ligne, period.id)
+            )
+            for ligne in grille_lignes
+        }
+    except GrilleConfigError as exc:
+        raise DeliberationConfigError(str(exc)) from exc
 
     decision_rows = []
     percentages_for_average = []
     students_without_grade = 0
     for enrollment in enrollments:
-        inputs = [
-            CourseGradeInput(
-                c.id,
-                c.coefficient,
-                c.max_score,
-                grades[(enrollment.id, c.id)].score
-                if (enrollment.id, c.id) in grades
-                else None,
+        inputs = []
+        for ligne in grille_lignes:
+            grade = grades.get((enrollment.id, ligne.id))
+            inputs.append(
+                CourseGradeInput(
+                    ligne_id=ligne.id,
+                    groupe_id=ligne.groupe_cours_id,
+                    coefficient=ligne.ponderation,
+                    max_score=maxima[ligne.id],
+                    score=grade.score if grade else None,
+                    appreciation=grade.appreciation if grade else None,
+                    included=ligne.entre_dans_total_general
+                    and ligne.groupe.entre_dans_total_general,
+                    is_numeric=not ligne.note_par_appreciation,
+                )
             )
-            for c in courses
-        ]
         result = compute_period_total(period.id, inputs)
         if result.percentage is None:
             students_without_grade += 1
@@ -219,8 +247,8 @@ def compute_class_consolidation(school_class, period, courses, enrollments) -> d
 
     publication = _publication(school_class.id, period.id)
     blocking_items = [
-        {"label": f"{state.course.name} : {state.entered}/{state.expected} cotes saisies"}
-        for state in course_states
+        {"label": f"{state.ligne.cours.name} : {state.entered}/{state.expected} cotes saisies"}
+        for state in ligne_states
         if not state.complete
     ]
 
@@ -229,7 +257,7 @@ def compute_class_consolidation(school_class, period, courses, enrollments) -> d
         "period_name": period.name,
         "academic_year": school_class.academic_year.label,
         "encoding_rate": _percent_label(
-            sum(s.entered for s in course_states), sum(s.expected for s in course_states)
+            sum(s.entered for s in ligne_states), sum(s.expected for s in ligne_states)
         ),
         "class_average": quantize_percentage(
             sum(percentages_for_average) / len(percentages_for_average)
@@ -239,14 +267,14 @@ def compute_class_consolidation(school_class, period, courses, enrollments) -> d
         "students_without_grade": students_without_grade,
         "courses": [
             {
-                "name": state.course.name,
+                "name": state.ligne.cours.name,
                 "encoding_rate": _percent_label(state.entered, state.expected),
                 "entered": state.entered,
                 "expected": state.expected,
                 "status": "complete" if state.complete else "incomplete",
                 "status_label": "Complet" if state.complete else "Incomplet",
             }
-            for state in course_states
+            for state in ligne_states
         ],
         "distribution": _distribution(percentages_for_average),
         "blocking_items": blocking_items,
@@ -289,10 +317,12 @@ def _automatic_decision(result, inputs, threshold, eliminatory_codes, max_failur
     failing = [
         item
         for item in inputs
-        if item.score is not None and (item.score / item.max_score * 100) < threshold
+        if item.is_numeric
+        and item.score is not None
+        and (item.score / item.max_score * 100) < threshold
     ]
     eliminatory_failures = [
-        item for item in failing if course_codes.get(item.course_id) in eliminatory_codes
+        item for item in failing if course_codes.get(item.ligne_id) in eliminatory_codes
     ]
 
     reasons = []
@@ -300,7 +330,7 @@ def _automatic_decision(result, inputs, threshold, eliminatory_codes, max_failur
     if eliminatory_failures:
         hard_block = True
         for item in eliminatory_failures:
-            reasons.append(f"Cours éliminatoire en échec : {course_codes[item.course_id]}.")
+            reasons.append(f"Cours éliminatoire en échec : {course_codes[item.ligne_id]}.")
     if max_failures is not None and len(failing) > max_failures:
         hard_block = True
         reasons.append(

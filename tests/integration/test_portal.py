@@ -1,4 +1,9 @@
-"""Portal contracts: authorization, validation, conflicts, audit and rendering."""
+"""Portal contracts: authorization, validation, conflicts, audit and rendering.
+
+Out-of-scope contextual access (wrong/unassigned class or grid line) is a
+404, never a 403 — 403 is reserved for @roles_required's coarse "this
+role is never allowed on this endpoint at all" gate. See
+app.services.authorization_service's module docstring."""
 
 import json
 from decimal import Decimal
@@ -25,14 +30,15 @@ def _tenant_request_context(app, tenant_a):
 
 
 @pytest.fixture()
-def portal(client, db, make_user, course, enrollment, evaluation_period):
+def portal(client, db, make_user, school_class, grille_ligne, enrollment, evaluation_period):
     user, password = make_user(role=RoleEnum.DIRECTION)
     client.post("/auth/login", data={"email": user.email, "password": password})
     return {
-        "url": f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}",
-        "change": {"enrollment": enrollment.id, "course": course.id, "value": "12", "base": ""},
+        "url": f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}",
+        "change": {"enrollment": enrollment.id, "course": grille_ligne.id, "value": "12", "base": ""},
         "user": user,
-        "course": course,
+        "course": grille_ligne,
+        "school_class": school_class,
         "period": evaluation_period,
     }
 
@@ -77,13 +83,16 @@ def test_invalid_score_is_reported_in_cell(client, portal, value):
 
 @pytest.mark.parametrize("changes", [[], {}, [None], [{"enrollment": []}], [1] * 31])
 def test_malformed_batch_is_rejected(client, portal, changes):
-    assert save(client, portal, changes).status_code in [400, 403]
+    # Structural issues (wrong shape/size) are 400; a dict-shaped cell that
+    # simply names an out-of-scope enrollment/line lands on the 404
+    # out-of-scope path instead — never 403.
+    assert save(client, portal, changes).status_code in [400, 404]
     assert Grade.query.count() == 0
 
 
 def test_entire_batch_authorized_before_writing(client, portal):
     changes = [portal["change"], {**portal["change"], "enrollment": 9999}]
-    assert save(client, portal, changes).status_code == 403
+    assert save(client, portal, changes).status_code == 404
     assert Grade.query.count() == 0
 
 
@@ -119,8 +128,16 @@ def test_teacher_only_sees_assigned_courses(client, db, portal, make_user):
     teacher, password = make_user(email="teacher@example.com")
     client.get("/auth/logout")
     client.post("/auth/login", data={"email": teacher.email, "password": password})
-    assert client.get(portal["url"] + "/grid").status_code == 403
-    db.session.add(TeacherAssignment(teacher_id=teacher.id, course_id=portal["course"].id))
+    # No assignment yet: an ENSEIGNANT with zero visible lines in this
+    # class gets a 404 (contextual, out of scope), not 403.
+    assert client.get(portal["url"] + "/grid").status_code == 404
+    db.session.add(
+        TeacherAssignment(
+            teacher_id=teacher.id,
+            school_class_id=portal["school_class"].id,
+            grille_cours_ligne_id=portal["course"].id,
+        )
+    )
     db.session.commit()
     assert client.get(portal["url"] + "/grid").status_code == 200
     assert save(client, portal).status_code == 200
@@ -150,7 +167,7 @@ def test_csrf_is_enforced(app, client, portal):
 
 
 def test_archived_year_is_inaccessible(client, db, portal):
-    portal["course"].school_class.academic_year.archived_at = utcnow()
+    portal["school_class"].academic_year.archived_at = utcnow()
     db.session.commit()
     assert client.get(portal["url"] + "/grid").status_code == 404
     assert save(client, portal).status_code == 404
@@ -158,7 +175,11 @@ def test_archived_year_is_inaccessible(client, db, portal):
 
 def test_assignment_is_idempotent(client, db, portal, make_user):
     teacher, _ = make_user(email="teacher@example.com")
-    data = {"teacher_id": teacher.id, "course_id": portal["course"].id}
+    data = {
+        "teacher_id": teacher.id,
+        "class_id": portal["school_class"].id,
+        "grille_cours_ligne_id": portal["course"].id,
+    }
     assert client.post("/portal/assignments", data=data).status_code == 302
     assert client.post("/portal/assignments", data=data).status_code == 302
     assert TeacherAssignment.query.count() == 1

@@ -1,6 +1,14 @@
-"""Server-rendered teaching portal and bounded, audited grade synchronization."""
+"""Server-rendered teaching portal and bounded, audited grade synchronization.
+
+Every contextual permission check here goes through
+`app.services.authorization_service` — this module makes no
+`current_user.role ==` comparison of its own; `@roles_required` only
+gates broad route access (is this role ever allowed on this endpoint at
+all), never a specific class, line, or student.
+"""
 
 import json
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, abort, make_response, redirect, render_template, request, url_for
@@ -9,18 +17,33 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass
-from app.models.course import Course
 from app.models.grading import Grade
 from app.models.student import Enrollment, EnrollmentStatus, Student
 from app.models.teaching import TeacherAssignment
 from app.models.user import RoleEnum, User
-from app.security.rbac import is_titulaire, require_direction_or_titulaire, roles_required
-from app.services.audit_service import create_grade, update_grade_score
+from app.security.rbac import roles_required
+from app.services.audit_service import create_grade, update_grade_content
+from app.services.authorization_service import (
+    affecter_titulaire,
+    est_attributaire,
+    est_titulaire_effectif,
+    peut_encoder_ligne,
+    peut_lire_cotes_classe,
+    peut_soumettre_classe,
+    require_direction,
+    require_lecture_classe,
+)
 from app.services.grade_calculation_engine import (
     CourseGradeInput,
     compute_period_total,
     quantize_percentage,
     rank_students,
+)
+from app.services.grille_service import (
+    GrilleConfigError,
+    lignes_actives,
+    maximum_pour_periode,
+    resoudre_grille,
 )
 from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidation
 
@@ -33,41 +56,72 @@ def active(query, model):
     return query.filter(model.archived_at.is_(None))
 
 
-def courses_for(class_id=None):
-    """Courses this user may EDIT grades for — the authorization source
-    of truth for `sync()`. Titulariat never widens this: a titulaire who
-    isn't assigned to a course still can't touch its grades, matching
-    "il ne peut jamais modifier une cote encodée par un autre
-    enseignant". See `display_courses_for` for what a titulaire may
-    additionally *see*."""
-    query = active(Course.query, Course).join(SchoolClass).filter(SchoolClass.archived_at.is_(None))
-    if class_id is not None:
-        query = query.filter(Course.school_class_id == class_id)
-    if current_user.role == RoleEnum.ENSEIGNANT:
-        query = query.join(TeacherAssignment).filter(
-            TeacherAssignment.teacher_id == current_user.id,
-            TeacherAssignment.archived_at.is_(None),
-        )
-    return [
-        course
-        for course in query.order_by(Course.name).all()
-        if not course.school_class.academic_year.is_archived
-    ]
+@dataclass(frozen=True)
+class CourseColumn:
+    """A grid line, adapted for the grade grid/report templates — `id` is
+    the `GrilleCoursLigne.id` a `Grade` actually references. `max_score`
+    is the maximum configured for the period this column was built for
+    (None for an appreciation line, which has no numeric maximum)."""
+
+    id: int
+    code: str
+    name: str
+    coefficient: Decimal
+    max_score: Decimal | None
+    is_appreciation: bool
+    groupe_id: int
 
 
-def display_courses_for(class_id, klass):
-    """Courses to SHOW for this class: every course, if the viewer is the
-    class's titulaire (DIRECTION/SECRETARIAT already see everything via
-    `courses_for`) — the read-only, class-wide grade visibility a
-    titulaire has regardless of which courses they personally teach."""
-    if current_user.role == RoleEnum.ENSEIGNANT and is_titulaire(current_user, klass):
-        return (
-            active(Course.query, Course)
-            .filter(Course.school_class_id == class_id)
-            .order_by(Course.name)
-            .all()
+def _course_columns(klass, period=None) -> list[CourseColumn]:
+    """Every active column of the class's grid, in display order. Raises
+    GrilleConfigError (surfaced by callers as a 503) if the class has no
+    grid configured for its (section, niveau, year) — never silently an
+    empty grid."""
+    grille = resoudre_grille(klass)
+    columns = []
+    for ligne in lignes_actives(grille):
+        max_score = None
+        if not ligne.note_par_appreciation and period is not None:
+            max_score = maximum_pour_periode(ligne, period.id)
+        columns.append(
+            CourseColumn(
+                id=ligne.id,
+                code=ligne.cours.code,
+                name=ligne.cours.name,
+                coefficient=ligne.ponderation,
+                max_score=max_score,
+                is_appreciation=ligne.note_par_appreciation,
+                groupe_id=ligne.groupe_cours_id,
+            )
         )
-    return courses_for(class_id)
+    return columns
+
+
+def display_columns_for(klass, period=None) -> list[CourseColumn]:
+    """Columns to SHOW for this class: every column, for Direction/
+    Secrétariat or the class's effective titulaire (read-only, class-wide
+    visibility); only the columns the caller is personally assigned to,
+    for a plain attributaire."""
+    columns = _course_columns(klass, period=period)
+    if peut_lire_cotes_classe(current_user, klass):
+        return columns
+    grille = resoudre_grille(klass)
+    lignes_by_id = {ligne.id: ligne for ligne in lignes_actives(grille)}
+    return [c for c in columns if est_attributaire(current_user, klass, lignes_by_id[c.id])]
+
+
+def editable_column_ids_for(klass, period) -> set[int]:
+    """The subset of the class's grid lines the caller may WRITE grades
+    for, for this specific period. Titulariat never widens this: a
+    titulaire who isn't assigned to a line still can't touch its
+    grades — matching "il ne peut jamais modifier une cote encodée par
+    un autre enseignant"."""
+    grille = resoudre_grille(klass)
+    return {
+        ligne.id
+        for ligne in lignes_actives(grille)
+        if peut_encoder_ligne(current_user, klass, ligne, period)
+    }
 
 
 def context(class_id, period_id):
@@ -77,10 +131,13 @@ def context(class_id, period_id):
         abort(404)
     if period.academic_year_id != klass.academic_year_id:
         abort(404)
-    editable = courses_for(class_id)
-    courses = display_courses_for(class_id, klass)
+    try:
+        courses = display_columns_for(klass, period=period)
+        editable_course_ids = editable_column_ids_for(klass, period)
+    except GrilleConfigError as error:
+        abort(503, description=str(error))
     if current_user.role == RoleEnum.ENSEIGNANT and not courses:
-        abort(403)
+        abort(404)
     enrollments = (
         active(Enrollment.query, Enrollment)
         .join(Student)
@@ -95,16 +152,16 @@ def context(class_id, period_id):
     )
     grades = Grade.query.filter(
         Grade.enrollment_id.in_([e.id for e in enrollments]),
-        Grade.course_id.in_([c.id for c in courses]),
+        Grade.grille_cours_ligne_id.in_([c.id for c in courses]),
         Grade.period_id == period_id,
     ).all()
     return dict(
         klass=klass,
         period=period,
         courses=courses,
-        editable_course_ids={c.id for c in editable},
+        editable_course_ids=editable_course_ids,
         enrollments=enrollments,
-        grades={(g.enrollment_id, g.course_id): g for g in grades},
+        grades={(g.enrollment_id, g.grille_cours_ligne_id): g for g in grades},
     )
 
 
@@ -127,16 +184,30 @@ def session_check():
 @bp.get("/")
 @roles_required(*ALL_ROLES)
 def dashboard():
-    courses = courses_for()
-    ids = {c.school_class_id for c in courses}
     classes = active(SchoolClass.query, SchoolClass).order_by(SchoolClass.name).all()
+    classes = [c for c in classes if not c.academic_year.is_archived]
     if current_user.role == RoleEnum.ENSEIGNANT:
         # Server-derived, never filtered client-side: a course assignment
-        # grants access to that course's class, and titulariat grants
-        # access to that class even without a course assignment there.
-        titulaire_ids = {c.id for c in classes if c.titulaire_id == current_user.id}
-        classes = [c for c in classes if c.id in ids or c.id in titulaire_ids]
-    classes = [c for c in classes if not c.academic_year.is_archived]
+        # grants access to that course's class, and effective titulariat
+        # grants access to that class even without a course assignment
+        # there.
+        assigned_class_ids = {
+            a.school_class_id
+            for a in active(TeacherAssignment.query, TeacherAssignment).filter_by(
+                teacher_id=current_user.id
+            )
+        }
+        classes = [
+            c
+            for c in classes
+            if c.id in assigned_class_ids or est_titulaire_effectif(current_user, c)
+        ]
+    courses = []
+    for klass in classes:
+        try:
+            courses.extend(display_columns_for(klass))
+        except GrilleConfigError:
+            continue
     return render_template("portal/dashboard.html", classes=classes, courses=courses)
 
 
@@ -144,9 +215,19 @@ def dashboard():
 @roles_required(RoleEnum.DIRECTION)
 def assignments():
     error = None
+    classes = active(SchoolClass.query, SchoolClass).order_by(SchoolClass.name).all()
+    line_choices = []  # (class, CourseColumn) pairs across every configured grid
+    for klass in classes:
+        try:
+            for column in _course_columns(klass):
+                line_choices.append((klass, column))
+        except GrilleConfigError:
+            continue
+
     if request.method == "POST" and request.form.get("kind") == "titulaire":
         klass = db.session.get(SchoolClass, request.form.get("class_id", type=int))
         teacher = db.session.get(User, request.form.get("titulaire_teacher_id", type=int))
+        motif = request.form.get("motif", "").strip()
         if (
             not klass
             or klass.is_archived
@@ -154,47 +235,55 @@ def assignments():
             or not teacher
             or not teacher.is_active
             or teacher.role != RoleEnum.ENSEIGNANT
+            or not motif
         ):
-            error = "Sélectionnez une classe et un enseignant actif valides."
+            error = "Sélectionnez une classe, un enseignant actif et un motif valides."
         else:
-            # A per-class scope, set directly on the class — never a role
-            # or a table of its own, so there is only ever one place a
-            # titulaire's status can live.
-            klass.titulaire_id = teacher.id
-            db.session.commit()
+            affecter_titulaire(klass, teacher, motif=motif, actor=current_user)
             return redirect(url_for("portal.assignments"))
     elif request.method == "POST":
         teacher = db.session.get(User, request.form.get("teacher_id", type=int))
-        course = db.session.get(Course, request.form.get("course_id", type=int))
+        klass = db.session.get(SchoolClass, request.form.get("class_id", type=int))
+        ligne_id = request.form.get("grille_cours_ligne_id", type=int)
+        valid_pair = klass is not None and ligne_id in {
+            c.id for k, c in line_choices if k.id == (klass.id if klass else None)
+        }
         if (
             not teacher
             or not teacher.is_active
             or teacher.role != RoleEnum.ENSEIGNANT
-            or not course
-            or course.is_archived
-            or course.school_class.is_archived
-            or course.school_class.academic_year.is_archived
+            or not klass
+            or klass.is_archived
+            or klass.academic_year.is_archived
+            or not valid_pair
         ):
-            error = "Sélectionnez un enseignant actif et un cours valide."
+            error = "Sélectionnez un enseignant actif et une ligne de grille valide."
         else:
             item = TeacherAssignment.query.filter_by(
-                teacher_id=teacher.id, course_id=course.id
+                teacher_id=teacher.id, school_class_id=klass.id, grille_cours_ligne_id=ligne_id
             ).first()
             if item:
                 item.archived_at = None
             else:
-                db.session.add(TeacherAssignment(teacher_id=teacher.id, course_id=course.id))
+                db.session.add(
+                    TeacherAssignment(
+                        teacher_id=teacher.id,
+                        school_class_id=klass.id,
+                        grille_cours_ligne_id=ligne_id,
+                    )
+                )
             try:
                 db.session.commit()
                 return redirect(url_for("portal.assignments"))
             except IntegrityError:
                 db.session.rollback()
                 error = "Cette attribution existe déjà. Rechargez la page."
+
     return render_template(
         "portal/assignments.html",
         error=error,
-        courses=courses_for(),
-        classes=active(SchoolClass.query, SchoolClass).order_by(SchoolClass.name).all(),
+        line_choices=line_choices,
+        classes=classes,
         teachers=active(User.query, User)
         .filter_by(role=RoleEnum.ENSEIGNANT, is_active_account=True)
         .all(),
@@ -234,11 +323,13 @@ def sync(class_id, period_id):
             or eid not in enrollment_ids
             or cid not in editable_course_ids
         ):
-            # A titulaire may SEE every course's grades in this class
+            # A titulaire may SEE every line's grades in this class
             # (ctx["courses"]) but writes are still bounded to their own
-            # TeacherAssignment scope — a course they can see but not
-            # edit lands here, same as any other unauthorized cell.
-            abort(403)
+            # TeacherAssignment scope — a line they can see but not edit
+            # lands here, same as any other unauthorized cell. Out-of-scope
+            # access is a 404, not a 403 — see authorization_service's
+            # module docstring.
+            abort(404)
         if (eid, cid) in seen:
             return "Cellule répétée dans le lot.", 400
         seen.add((eid, cid))
@@ -251,6 +342,7 @@ def sync(class_id, period_id):
             return "Valeur invalide.", 400
     for change in changes:
         eid, cid = change["enrollment"], change["course"]
+        column = courses[cid]
         result = dict(
             key=f"{eid}-{cid}",
             value=change["value"],
@@ -258,26 +350,32 @@ def sync(class_id, period_id):
             message="Enregistré",
             base=change["base"],
         )
+        if column.is_appreciation:
+            result.update(state="error", message="Colonne à appréciation : saisie non prise en charge ici.")
+            results.append(result)
+            continue
         try:
             score = Decimal(change["value"].replace(",", "."))
             if (
                 not score.is_finite()
                 or score < 0
-                or score > courses[cid].max_score
+                or score > column.max_score
                 or score != score.quantize(Decimal("0.01"))
             ):
                 raise ValueError
         except (InvalidOperation, ValueError):
             result.update(
                 state="error",
-                message=f"Saisir une cote entre 0 et {courses[cid].max_score}, avec 2 décimales maximum.",
+                message=f"Saisir une cote entre 0 et {column.max_score}, avec 2 décimales maximum.",
             )
             results.append(result)
             continue
         try:
             with db.session.begin_nested():
                 grade = (
-                    Grade.query.filter_by(enrollment_id=eid, course_id=cid, period_id=period_id)
+                    Grade.query.filter_by(
+                        enrollment_id=eid, grille_cours_ligne_id=cid, period_id=period_id
+                    )
                     .with_for_update()
                     .populate_existing()
                     .first()
@@ -297,16 +395,16 @@ def sync(class_id, period_id):
                         grade = create_grade(
                             ecole_id=ecole_id,
                             enrollment_id=eid,
-                            course_id=cid,
+                            grille_cours_ligne_id=cid,
                             period_id=period_id,
                             score=score,
                             entered_by_id=current_user.id,
                             ip_address=request.remote_addr,
                         )
                     elif grade.score != score:
-                        update_grade_score(
+                        update_grade_content(
                             grade=grade,
-                            new_score=score,
+                            score=score,
                             user_id=current_user.id,
                             ip_address=request.remote_addr,
                         )
@@ -333,12 +431,14 @@ def result_context(class_id, period_id):
     for enrollment in ctx["enrollments"]:
         inputs = [
             CourseGradeInput(
-                c.id,
-                c.coefficient,
-                c.max_score,
-                ctx["grades"][(enrollment.id, c.id)].score
+                ligne_id=c.id,
+                groupe_id=c.groupe_id,
+                coefficient=c.coefficient,
+                max_score=c.max_score,
+                score=ctx["grades"][(enrollment.id, c.id)].score
                 if (enrollment.id, c.id) in ctx["grades"]
                 else None,
+                is_numeric=not c.is_appreciation,
             )
             for c in ctx["courses"]
         ]
@@ -380,16 +480,31 @@ def _server_consolidation_payload(class_id, period_id):
     `normalize_consolidation` expects, so it also acts as a contract
     check: a bug in the service that produces a malformed payload shows
     up as a 502 here, not as a template crash."""
-    ctx = context(class_id, period_id)
+    klass = db.get_or_404(SchoolClass, class_id)
+    period = db.get_or_404(EvaluationPeriod, period_id)
+    try:
+        grille = resoudre_grille(klass)
+        grille_lignes = lignes_actives(grille)
+    except GrilleConfigError as error:
+        abort(503, description=str(error))
+    enrollments = (
+        active(Enrollment.query, Enrollment)
+        .join(Student)
+        .filter(
+            Enrollment.school_class_id == class_id,
+            Enrollment.academic_year_id == klass.academic_year_id,
+            Enrollment.status != EnrollmentStatus.WITHDRAWN,
+            Student.archived_at.is_(None),
+        )
+        .all()
+    )
     try:
         from app.services.deliberation_service import (
             DeliberationConfigError,
             compute_class_consolidation,
         )
 
-        payload = compute_class_consolidation(
-            ctx["klass"], ctx["period"], ctx["courses"], ctx["enrollments"]
-        )
+        payload = compute_class_consolidation(klass, period, grille_lignes, enrollments)
     except DeliberationConfigError as error:
         abort(503, description=str(error))
     try:
@@ -402,7 +517,7 @@ def _server_consolidation_payload(class_id, period_id):
 @roles_required(*ALL_ROLES)
 def consolidation(class_id, period_id):
     klass = db.get_or_404(SchoolClass, class_id)
-    require_direction_or_titulaire(klass)
+    require_lecture_classe(current_user, klass)
     payload = _server_consolidation_payload(class_id, period_id)
     return render_template(
         "portal/consolidation.html",
@@ -420,8 +535,9 @@ def _available_transitions(class_id, period_id, payload, klass):
 
     status = payload["publication"]["status"]
     next_action = _next_action_for(status)
+    period = db.session.get(EvaluationPeriod, period_id)
     can_act = current_user.role == RoleEnum.DIRECTION or (
-        next_action == "submit" and is_titulaire(current_user, klass)
+        next_action == "submit" and peut_soumettre_classe(current_user, klass, period)
     )
     if not can_act:
         return []
@@ -457,10 +573,12 @@ def transition(class_id, period_id, action):
     from app.services.deliberation_service import TransitionError, apply_transition
 
     klass = db.get_or_404(SchoolClass, class_id)
+    period = db.get_or_404(EvaluationPeriod, period_id)
     if action == "submit":
-        require_direction_or_titulaire(klass)
-    elif current_user.role != RoleEnum.DIRECTION:
-        abort(403)
+        if not peut_soumettre_classe(current_user, klass, period):
+            require_direction(current_user)
+    else:
+        require_direction(current_user)
 
     if action == "submit":
         payload = _server_consolidation_payload(class_id, period_id)
@@ -472,8 +590,6 @@ def transition(class_id, period_id, action):
                 ),
                 409,
             )
-    else:
-        context(class_id, period_id)  # 404s an invalid/archived class or period
     try:
         apply_transition(
             school_class_id=class_id, period_id=period_id, action=action, user=current_user
@@ -531,7 +647,8 @@ def override_decision(class_id, period_id, enrollment_id):
         apply_override,
     )
 
-    context(class_id, period_id)  # 404s an invalid/archived class or period
+    db.get_or_404(SchoolClass, class_id)
+    db.get_or_404(EvaluationPeriod, period_id)
     enrollment = db.session.get(Enrollment, enrollment_id)
     if enrollment is None or enrollment.school_class_id != class_id:
         abort(404)

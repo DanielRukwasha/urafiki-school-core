@@ -3,35 +3,41 @@
 Every business route must be decorated with @roles_required(...) — RBAC is
 never enforced only client-side. Checking current_user.is_authenticated is
 handled here too, so a route only needs this one decorator.
+
+Contextual, per-resource authorization (is THIS user allowed on THIS
+class/line/period) is never decided here — see
+app.services.authorization_service, which this module's two legacy
+helpers now delegate to for backward compatibility.
 """
 
 from functools import wraps
 
 from flask import abort
 from flask_login import current_user, login_required
+from werkzeug.exceptions import NotFound
 
 from app.models.user import RoleEnum
 
 
 def is_titulaire(user, school_class) -> bool:
-    """Whether `user` is the homeroom teacher (titulaire) of this class —
-    a per-class scope read from `SchoolClass.titulaire_id`, never a role
-    carried globally on the account. A teacher can be titulaire of one
-    class and a plain course attributaire in another."""
-    return school_class.titulaire_id is not None and school_class.titulaire_id == user.id
+    """Deprecated alias for
+    `app.services.authorization_service.est_titulaire_effectif` — kept so
+    older call sites keep working, but new code should call the
+    authorization service directly."""
+    from app.services.authorization_service import est_titulaire_effectif
+
+    return est_titulaire_effectif(user, school_class)
 
 
 def require_direction_or_titulaire(school_class) -> None:
-    """403s unless the signed-in user is DIRECTION, or the titulaire of
-    this specific class. For views a titulaire may read for their own
-    class only (class-wide grades, encoding progress) — deliberately not
-    a `roles_required` decorator, since titulariat is per-class, not a
-    role the decorator's flat allow-list can express."""
-    if current_user.role == RoleEnum.DIRECTION:
-        return
-    if current_user.role == RoleEnum.ENSEIGNANT and is_titulaire(current_user, school_class):
-        return
-    abort(403)
+    """Deprecated alias for
+    `app.services.authorization_service.require_lecture_classe`."""
+    from app.services.authorization_service import require_lecture_classe
+
+    try:
+        require_lecture_classe(current_user, school_class)
+    except NotFound:
+        abort(404)
 
 
 def roles_required(*allowed_roles: RoleEnum):
