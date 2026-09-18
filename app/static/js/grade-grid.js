@@ -53,11 +53,11 @@
         draft = JSON.parse(localStorage.getItem(prefix + key) || "null");
         if (draft && (typeof draft.value !== "string" || typeof draft.base !== "string")) throw Error("invalid draft");
       } catch (_) { storageError(); }
-      if (input.dataset.locked !== "true") input.disabled = false;
+      if (input.dataset.locked !== "true" && input.dataset.editable === "true") input.disabled = false;
       if (draft) {
         pending.set(key, draft);
         input.value = draft.value;
-        if (input.disabled) { draft.error = true; state(input, "error", "Cote verrouillée. Exportez ou abandonnez le brouillon."); }
+        if (input.disabled) { draft.error = true; state(input, "error", input.dataset.editable === "true" ? "Cote verrouillée. Exportez ou abandonnez le brouillon." : "Lecture seule : cote d’un autre enseignant."); }
         else state(input, draft.error ? "error" : "local", draft.error ? "Brouillon à vérifier" : "Brouillon local restauré");
       }
     }
