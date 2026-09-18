@@ -18,6 +18,10 @@ def create_app(config_name: str | None = None) -> Flask:
 
     init_tenant_resolution(app)
 
+    from app.tenant_presentation import install_tenant_presentation
+
+    install_tenant_presentation(app)
+
     from app.cli import register_cli
 
     register_cli(app)

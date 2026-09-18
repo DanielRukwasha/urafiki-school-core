@@ -1,0 +1,70 @@
+﻿{
+  "rivage": {
+    "branding": {
+      "display_name": "Académie Rivage",
+      "primary_color": "#ffff00",
+      "accent_color": "#b100a0",
+      "neutral_color": "#ff8800",
+      "logo_url": "/static/tenant-test/rivage.png",
+      "favicon_url": "/static/tenant-test/rivage.png",
+      "locale": "fr"
+    },
+    "report": {
+      "locale": "fr",
+      "columns": [
+        "course",
+        "score",
+        "max_score",
+        "coefficient"
+      ],
+      "header_lines": [
+        "Cycle secondaire · Session trimestrielle"
+      ],
+      "labels": {
+        "bulletin_title": "Bilan trimestriel",
+        "score": "Résultat du cours"
+      },
+      "signatures": [
+        "La direction pédagogique",
+        "Le responsable légal"
+      ],
+      "legal_text": "Document réservé à la famille.",
+      "header_alignment": "center"
+    },
+    "period": "Trimestre 1"
+  },
+  "horizon": {
+    "branding": {
+      "display_name": "Horizon Learning School",
+      "primary_color": "#2563eb",
+      "accent_color": "#0f766e",
+      "neutral_color": "#1e293b",
+      "logo_url": "/static/tenant-test/horizon.png",
+      "favicon_url": "/static/tenant-test/horizon.png",
+      "locale": "en"
+    },
+    "report": {
+      "locale": "en",
+      "columns": [
+        "code",
+        "course",
+        "coefficient",
+        "score",
+        "max_score",
+        "weighted"
+      ],
+      "header_lines": [
+        "Upper school · Semester programme"
+      ],
+      "labels": {
+        "bulletin_title": "Semester progress report"
+      },
+      "signatures": [
+        "Head of school"
+      ],
+      "legal_text": "For the student and their guardian only.",
+      "orientation": "landscape"
+    },
+    "period": "Semester 1"
+  }
+}

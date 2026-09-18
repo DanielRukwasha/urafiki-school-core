@@ -1,18 +1,89 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>{{ 'Bulletins' if kind == 'bulletins' else 'Palmarès' }} · {{ klass.name }}</title>
-<style>
-@page {size:A4 portrait;margin:17mm 15mm 20mm;@bottom-left{content:"Urafiki · Document de période";font:9pt sans-serif;color:#586575}@bottom-right{content:"Page " counter(page) " / " counter(pages);font:9pt sans-serif;color:#586575}}
-*{box-sizing:border-box}body{font:10pt "DejaVu Sans",sans-serif;color:#192536;margin:0}h1{font-size:21pt;margin:5mm 0}h2{font-size:13pt;margin:4mm 0}p{margin:2mm 0}.eyebrow{font-size:9pt;color:#586575;text-transform:uppercase;letter-spacing:1pt}.header{border-bottom:1.5pt solid #225b50;padding-bottom:5mm;margin-bottom:6mm}.meta{background:#f1f5f6;padding:4mm;margin-bottom:5mm}.muted{color:#586575}.report{break-before:page}.report:first-of-type{break-before:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:5mm 0}thead{display:table-header-group}th,td{border-bottom:.5pt solid #d2dae3;padding:3mm 2mm;text-align:left;overflow-wrap:anywhere}th{background:#edf2f4;font-size:9pt}tr{break-inside:avoid}.numeric{text-align:right}.summary{border-top:1pt solid #225b50;padding:4mm 0;break-inside:avoid}.signatures{margin-top:12mm;display:table;width:100%;break-inside:avoid}.signatures span{display:table-cell;width:50%}.note{font-size:8pt;color:#586575;margin-top:5mm}.toolbar{padding:16px;background:#edf2f4;margin-bottom:20px}@media print{.toolbar{display:none}}@media screen{body{max-width:210mm;margin:25px auto;padding:15mm;background:white}html{background:#e5e9ef}.report{margin-bottom:40px}}
-</style></head><body>
-{% if not pdf %}<div class="toolbar"><a href="{{ url_for('portal.results', class_id=klass.id, period_id=period.id) }}">← Résultats</a> · <a href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}">Télécharger le PDF A4</a><p>Utilisez la commande Imprimer du navigateur pour imprimer cet aperçu.</p></div>{% endif %}
-{% macro header(title) %}<header class="header"><p class="eyebrow">{{ institution.name if institution else 'Établissement scolaire' }}</p>{% if institution and institution.address %}<p class="muted">{{ institution.address }}</p>{% endif %}<h1>{{ title }}</h1><p>{{ klass.name }} · {{ klass.academic_year.label }} · {{ period.name }}</p></header>{% endmacro %}
-{% if kind == 'bulletins' %}
-{% for row in rows %}<section class="report">{{ header('Bulletin de période') }}<div class="meta"><h2>{{ row.enrollment.student.full_name }}</h2><p>Matricule : {{ row.enrollment.student.matricule }}</p><p>{{ row.entered }} / {{ courses|length }} cotes saisies · {{ 'Complet' if courses and row.entered == courses|length else 'Résultat provisoire' }}</p></div>
-<table><colgroup><col style="width:44%"><col style="width:18%"><col style="width:18%"><col style="width:20%"></colgroup><thead><tr><th scope="col">Cours</th><th scope="col" class="numeric">Coefficient</th><th scope="col" class="numeric">Maximum</th><th scope="col" class="numeric">Cote</th></tr></thead><tbody>{% for course in courses %}{% set grade = grades.get((row.enrollment.id, course.id)) %}<tr><td>{{ course.name }}</td><td class="numeric">{{ course.coefficient }}</td><td class="numeric">{{ course.max_score }}</td><td class="numeric">{{ grade.score if grade else '—' }}</td></tr>{% endfor %}</tbody></table>
-<div class="summary"><p><strong>Total pondéré : {{ '%.2f'|format(row.total.weighted_points) }} / {{ '%.2f'|format(row.total.weighted_possible) }}</strong></p><p>Résultat : {{ (row.percentage ~ ' %') if row.percentage is not none else 'Non évalué' }} · Rang : {{ ranks.get(row.enrollment.id, '—') }}</p></div><p class="note">Les cotes manquantes (—) sont exclues du calcul. Ce bulletin de période ne constitue pas une décision de passage annuel.</p><div class="signatures"><span>Signature de la direction</span><span>Signature du parent / responsable</span></div></section>
-{% else %}{{ header('Bulletins de période') }}<p>Aucun élève inscrit.</p>{% endfor %}
-{% else %}
-{{ header('Palmarès de période') }}
-<table><colgroup><col style="width:10%"><col style="width:40%"><col style="width:20%"><col style="width:15%"><col style="width:15%"></colgroup><thead><tr><th scope="col">Rang</th><th scope="col">Élève</th><th scope="col">Matricule</th><th scope="col" class="numeric">Cotes</th><th scope="col" class="numeric">Résultat</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ ranks.get(row.enrollment.id, '—') }}</td><td>{{ row.enrollment.student.full_name }}</td><td>{{ row.enrollment.student.matricule }}</td><td class="numeric">{{ row.entered }}/{{ courses|length }}</td><td class="numeric">{{ (row.percentage ~ ' %') if row.percentage is not none else '—' }}</td></tr>{% else %}<tr><td colspan="5">Aucun élève inscrit.</td></tr>{% endfor %}</tbody></table>
-<p class="note">Classement provisoire lorsque des cotes manquent. Les ex æquo partagent le même rang. Les élèves sans cote ne sont pas classés.</p>
-{% endif %}</body></html>
+{% from "components/theme.html" import theme_tokens %}
+{% set labels = report_layout.labels %}
+<!doctype html>
+<html lang="{{ report_layout.locale }}">
+<head>
+  <meta charset="utf-8">
+  <title>{{ labels.bulletin_title if kind == 'bulletins' else labels.ranking_title }} · {{ ui_theme.name }}</title>
+  {{ theme_tokens(ui_theme) }}
+  {% include "portal/_report_styles.html" %}
+</head>
+<body>
+  <div class="report-footer">{{ ui_theme.name }}{% if preview %} · {{ labels.preview }}{% endif %}</div>
+  <div class="report-page-label">{{ labels.page }} <span class="page-number"></span></div>
+  {% if preview %}<div class="preview-banner" role="status">{{ labels.preview }}</div>{% endif %}
+  {% if not pdf %}
+  <nav class="toolbar" aria-label="{{ labels.back }}">
+    <a href="{{ url_for('portal.results', class_id=klass.id, period_id=period.id) }}">{{ labels.back }}</a>
+    {% if not preview %} · <a href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}">{{ labels.download }}</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% macro header(title) %}
+  <header class="report-header">
+    {% if report_layout.show_logo and report_logo_url %}<img class="report-logo" src="{{ report_logo_url }}" alt="" width="72" height="72">{% endif %}
+    <p class="school-name">{{ ui_theme.name }}</p>
+    {% for line in report_layout.header_lines %}<p class="muted">{{ line }}</p>{% endfor %}
+    <h1>{{ title }}</h1>
+    <p>{{ klass.name }} · {{ klass.academic_year.label }} · {{ period.name }}</p>
+  </header>
+  {% endmacro %}
+  {% macro footer() %}
+    {% if report_layout.legal_text %}<p class="legal-text">{{ report_layout.legal_text }}</p>{% endif %}
+    {% if report_layout.signatures %}<div class="signatures">{% for signature in report_layout.signatures %}<div>{{ signature }}</div>{% endfor %}</div>{% endif %}
+  {% endmacro %}
+  {% if kind == 'bulletins' %}
+    {% for row in rows %}
+    <section class="report">
+      {{ header(labels.bulletin_title) }}
+      <div class="meta">
+        <h2>{{ row.enrollment.student.full_name }}</h2>
+        <p>{{ labels.student_id }} : {{ row.enrollment.student.matricule }}</p>
+        <p>{{ labels.entered }} : {{ row.entered }} / {{ courses|length }} · {{ labels.complete if courses and row.entered == courses|length else labels.provisional }}</p>
+      </div>
+      <table>
+        <thead><tr>{% for column in report_layout.columns %}<th scope="col">{{ labels[{'max_score':'maximum'}.get(column, column)] }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for course in courses %}
+          {% set grade = grades.get((row.enrollment.id, course.id)) %}
+          <tr>{% for column in report_layout.columns %}
+            <td class="{{ 'numeric' if column not in ['course', 'code'] else '' }}">
+            {% if column == 'course' %}{{ course.name }}
+            {% elif column == 'code' %}{{ course.code }}
+            {% elif column == 'coefficient' %}{{ course.coefficient }}
+            {% elif column == 'max_score' %}{{ course.max_score }}
+            {% elif column == 'score' %}{{ grade.score if grade else '—' }}
+            {% elif column == 'weighted' %}{{ '%.2f'|format(grade.score * course.coefficient) if grade else '—' }}
+            {% endif %}
+            </td>
+          {% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="summary">
+        <p><strong>{{ labels.total }} : {{ '%.2f'|format(row.total.weighted_points) }} / {{ '%.2f'|format(row.total.weighted_possible) }}</strong></p>
+        <p>{{ labels.result }} : {{ (row.percentage ~ ' %') if row.percentage is not none else labels.not_evaluated }} · {{ labels.rank }} : {{ ranks.get(row.enrollment.id, '—') }}</p>
+      </div>
+      <p class="note">{{ labels.missing }} {{ labels.period_note }}</p>
+      {{ footer() }}
+    </section>
+    {% else %}{{ header(labels.bulletin_title) }}<p>{{ labels.empty }}</p>{% endfor %}
+  {% else %}
+    {{ header(labels.ranking_title) }}
+    <table>
+      <thead><tr>{% for column in report_layout.ranking_columns %}<th scope="col">{{ labels[column] }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in rows %}
+        <tr>{% for column in report_layout.ranking_columns %}<td>
+          {% if column == 'rank' %}{{ ranks.get(row.enrollment.id, '—') }}
+          {% elif column == 'student' %}{{ row.enrollment.student.full_name }}
+          {% elif column == 'student_id' %}{{ row.enrollment.student.matricule }}
+          {% elif column == 'entered' %}{{ row.entered }} / {{ courses|length }}
+          {% elif column == 'result' %}{{ (row.percentage ~ ' %') if row.percentage is not none else '—' }}{% endif %}
+        </td>{% endfor %}</tr>
+      {% else %}<tr><td colspan="{{ report_layout.ranking_columns|length }}">{{ labels.empty }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <p class="note">{{ labels.ranking_note }}</p>
+    {{ footer() }}
+  {% endif %}
+</body>
+</html>
 
