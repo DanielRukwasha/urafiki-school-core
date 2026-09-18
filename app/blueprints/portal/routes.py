@@ -22,6 +22,7 @@ from app.services.grade_calculation_engine import (
     quantize_percentage,
     rank_students,
 )
+from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidation
 
 bp = Blueprint("portal", __name__, url_prefix="/portal")
 ALL_ROLES = tuple(RoleEnum)
@@ -319,6 +320,224 @@ def result_context(class_id, period_id):
 @roles_required(RoleEnum.DIRECTION, RoleEnum.SECRETARIAT)
 def results(class_id, period_id):
     return render_template("portal/results.html", **result_context(class_id, period_id))
+
+
+def _server_consolidation_payload(class_id, period_id):
+    """The real consolidation/deliberation payload, computed server-side —
+    see app/services/deliberation_service.py. Shaped exactly as
+    `normalize_consolidation` expects, so it also acts as a contract
+    check: a bug in the service that produces a malformed payload shows
+    up as a 502 here, not as a template crash."""
+    ctx = context(class_id, period_id)
+    try:
+        from app.services.deliberation_service import (
+            DeliberationConfigError,
+            compute_class_consolidation,
+        )
+
+        payload = compute_class_consolidation(
+            ctx["klass"], ctx["period"], ctx["courses"], ctx["enrollments"]
+        )
+    except DeliberationConfigError as error:
+        abort(503, description=str(error))
+    try:
+        return normalize_consolidation(payload)
+    except ConsolidationPayloadError:
+        abort(502, description="Réponse de consolidation invalide.")
+
+
+@bp.get("/classes/<int:class_id>/periods/<int:period_id>/consolidation")
+@roles_required(RoleEnum.DIRECTION)
+def consolidation(class_id, period_id):
+    payload = _server_consolidation_payload(class_id, period_id)
+    return render_template(
+        "portal/consolidation.html",
+        consolidation=payload,
+        deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),
+        preview_url=url_for(
+            "portal.print_report", class_id=class_id, period_id=period_id, kind="bulletins"
+        ),
+        transitions=_available_transitions(class_id, period_id, payload),
+    )
+
+
+def _available_transitions(class_id, period_id, payload):
+    from app.ui.consolidation import TRANSITIONS
+
+    status = payload["publication"]["status"]
+    return [
+        {
+            "action": t.action,
+            "label": t.label,
+            "consequence": t.consequence,
+            "irreversible": t.irreversible,
+            "url": url_for(
+                "portal.transition", class_id=class_id, period_id=period_id, action=t.action
+            ),
+        }
+        for t in TRANSITIONS
+        if _next_action_for(status) == t.action
+    ]
+
+
+def _next_action_for(status):
+    from app.models.deliberation_workflow import (
+        NEXT_STATUS,
+        TRANSITION_ACTION_FOR_STATUS,
+        PublicationStatus,
+    )
+
+    next_status = NEXT_STATUS.get(PublicationStatus(status))
+    return TRANSITION_ACTION_FOR_STATUS[next_status] if next_status else None
+
+
+@bp.post("/classes/<int:class_id>/periods/<int:period_id>/consolidation/<action>")
+@roles_required(RoleEnum.DIRECTION)
+def transition(class_id, period_id, action):
+    from app.services.deliberation_service import TransitionError, apply_transition
+
+    if action == "consolidate":
+        payload = _server_consolidation_payload(class_id, period_id)
+        if payload["blocking_items"]:
+            return (
+                render_template(
+                    "portal/preview_error.html",
+                    error="Consolidation bloquée : des cours n'ont pas toutes leurs cotes saisies.",
+                ),
+                409,
+            )
+    else:
+        context(class_id, period_id)  # 404s an invalid/archived class or period
+    try:
+        apply_transition(
+            school_class_id=class_id, period_id=period_id, action=action, user=current_user
+        )
+    except TransitionError as error:
+        return render_template("portal/preview_error.html", error=str(error)), 409
+    return redirect(url_for("portal.consolidation", class_id=class_id, period_id=period_id))
+
+
+@bp.get("/classes/<int:class_id>/periods/<int:period_id>/deliberation")
+@roles_required(RoleEnum.DIRECTION)
+def deliberation(class_id, period_id):
+    payload = _server_consolidation_payload(class_id, period_id)
+    decision = request.args.get("decision", "")
+    sort = request.args.get("sort", "rank")
+    rows = payload["decisions"]
+    if decision:
+        rows = [row for row in rows if row["automatic_decision"] == decision]
+    sort_keys = {
+        "student": lambda row: row["student_name"],
+        "rank": lambda row: row["rank"],
+        "percentage": lambda row: (
+            row["percentage"] is None,
+            -(row["percentage"] or 0),
+        ),
+    }
+    rows = sorted(rows, key=sort_keys.get(sort, sort_keys["rank"]))
+    payload = {**payload, "decisions": rows}
+    return render_template(
+        "portal/deliberation.html",
+        consolidation=payload,
+        consolidation_url=url_for("portal.consolidation", class_id=class_id, period_id=period_id),
+        deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),
+        decision_filters=(
+            ("ADMITTED", "Admis"),
+            ("DEFERRED", "Ajourné"),
+            ("MANUAL", "À délibérer"),
+        ),
+        active_decision=decision,
+        pagination_controls="",
+    )
+
+
+@bp.route(
+    "/classes/<int:class_id>/periods/<int:period_id>/deliberation/<int:enrollment_id>/override",
+    methods=["GET", "POST"],
+)
+@roles_required(RoleEnum.DIRECTION)
+def override_decision(class_id, period_id, enrollment_id):
+    from app.models.deliberation_workflow import ManualDecision
+    from app.models.student import Enrollment
+    from app.services.deliberation_service import (
+        DeliberationConfigError,
+        TransitionError,
+        apply_override,
+    )
+
+    context(class_id, period_id)  # 404s an invalid/archived class or period
+    enrollment = db.session.get(Enrollment, enrollment_id)
+    if enrollment is None or enrollment.school_class_id != class_id:
+        abort(404)
+
+    if request.method == "POST":
+        raw_decision = request.form.get("manual_decision", "")
+        reason = request.form.get("manual_reason", "")
+        try:
+            decision = ManualDecision(raw_decision)
+        except ValueError:
+            return render_template("portal/preview_error.html", error="Décision invalide."), 422
+        try:
+            apply_override(
+                enrollment_id=enrollment_id,
+                period_id=period_id,
+                school_class_id=class_id,
+                decision=decision,
+                reason=reason,
+                user=current_user,
+            )
+        except (DeliberationConfigError, TransitionError) as error:
+            return render_template("portal/preview_error.html", error=str(error)), 422
+        return redirect(
+            url_for("portal.deliberation", class_id=class_id, period_id=period_id)
+        )
+
+    return render_template(
+        "portal/override_decision.html",
+        student_name=enrollment.student.full_name,
+        decision_options=(("ADMITTED", "Admis"), ("DEFERRED", "Ajourné")),
+    )
+
+
+@bp.get("/audit")
+@roles_required(RoleEnum.DIRECTION)
+def audit_log():
+    from app.services.deliberation_service import query_audit_log
+
+    filters = {
+        key: request.args.get(key, "") for key in ("user", "student", "action", "from", "to")
+    }
+    page = request.args.get("page", 1, type=int) or 1
+    entries, pagination = query_audit_log(
+        user=filters["user"] or None,
+        student=filters["student"] or None,
+        action=filters["action"] or None,
+        from_date=filters["from"] or None,
+        to_date=filters["to"] or None,
+        page=page,
+    )
+    return render_template(
+        "portal/audit_log.html",
+        entries=entries,
+        pagination=pagination,
+        pagination_controls="",
+        filters={
+            "user": filters["user"],
+            "student": filters["student"],
+            "action": filters["action"],
+            "from_date": filters["from"],
+            "to_date": filters["to"],
+        },
+        action_filters=(
+            ("CREATE", "Création"),
+            ("UPDATE", "Modification"),
+            ("DELETE", "Suppression"),
+            ("MANUAL_OVERRIDE", "Décision manuelle"),
+            ("CONSOLIDATE", "Consolidation"),
+            ("VALIDATE", "Validation"),
+            ("PUBLISH", "Publication"),
+        ),
+    )
 
 
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/print/<kind>")
