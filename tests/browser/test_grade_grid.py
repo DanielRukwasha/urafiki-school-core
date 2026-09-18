@@ -8,10 +8,51 @@ import pytest
 from werkzeug.serving import make_server
 
 from app.models.course import Course
+from app.models.institution import Institution
 from app.models.student import Enrollment, Student
+from app.models.tenant_config import TenantConfig
 from app.models.user import RoleEnum
+from app.security.tenant import resolve_tenant
 
 playwright = pytest.importorskip("playwright.sync_api")
+
+
+@pytest.fixture()
+def tenant_a(db, calculation_strategy_standard):
+    """Overrides conftest.py's tenant_a: the live server in this file
+    binds to 127.0.0.1 (see `browser_portal` below), and tenant resolution
+    matches on the request's Host header with the port stripped — so this
+    tenant's domain has to be "127.0.0.1", not the fixed test domain other
+    files use, or every request the real browser makes would 404."""
+    institution = Institution(
+        name="Institut Mont Carmel", short_code="IMC", domain="127.0.0.1"
+    )
+    db.session.add(institution)
+    db.session.commit()
+    db.session.add(
+        TenantConfig(
+            ecole_id=institution.id,
+            calculation_strategy_key="STANDARD",
+            percentage_decimal_places=2,
+            mentions=[],
+            eliminatory_course_codes=[],
+            report_signatures=[],
+            feature_flags={},
+        )
+    )
+    db.session.commit()
+    return institution
+
+
+@pytest.fixture(autouse=True)
+def _tenant_request_context(app, tenant_a):
+    """`browser_portal` below constructs rows directly via db.session.add,
+    before the live server (and thus before any real HTTP request) even
+    starts — push a resolved request context so their `ecole_id` column
+    default sees tenant_a."""
+    with app.test_request_context("/", base_url=f"http://{tenant_a.domain}"):
+        resolve_tenant()
+        yield
 
 
 @pytest.fixture()

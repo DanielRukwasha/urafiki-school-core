@@ -1,9 +1,11 @@
 """Student identity and yearly enrollment records."""
 
 import enum
+import uuid
 
 from app.extensions import db
 from app.models.mixins import SoftDeleteMixin, TimestampMixin
+from app.models.tenant_scope import TenantScopedModel
 
 
 class SexEnum(str, enum.Enum):
@@ -17,11 +19,20 @@ class EnrollmentStatus(str, enum.Enum):
     REPEATING = "REPEATING"
 
 
-class Student(db.Model, TimestampMixin, SoftDeleteMixin):
+class Student(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "students"
+    __table_args__ = (
+        db.UniqueConstraint("ecole_id", "matricule", name="uq_student_ecole_matricule"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    matricule = db.Column(db.String(40), nullable=False, unique=True, index=True)
+    # Globally unique, distinct from `matricule` (unique per école only).
+    # Reserved for Phase 3 inter-school exchanges — never used to resolve a
+    # tenant, never exposed in a URL today. See ARCHITECTURE_MULTITENANT.md.
+    global_student_uid = db.Column(
+        db.String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4())
+    )
+    matricule = db.Column(db.String(40), nullable=False, index=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     date_of_birth = db.Column(db.Date, nullable=True)
@@ -37,11 +48,14 @@ class Student(db.Model, TimestampMixin, SoftDeleteMixin):
         return f"<Student {self.matricule}>"
 
 
-class Enrollment(db.Model, TimestampMixin, SoftDeleteMixin):
+class Enrollment(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "enrollments"
     __table_args__ = (
         db.UniqueConstraint(
-            "student_id", "academic_year_id", name="uq_enrollment_student_year"
+            "ecole_id",
+            "student_id",
+            "academic_year_id",
+            name="uq_enrollment_ecole_student_year",
         ),
     )
 
