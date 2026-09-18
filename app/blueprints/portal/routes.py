@@ -164,6 +164,7 @@ def grid(class_id, period_id):
 @roles_required(*EDIT_ROLES)
 def sync(class_id, period_id):
     ctx = context(class_id, period_id)
+    ecole_id = ctx["klass"].ecole_id
     try:
         changes = json.loads(request.form.get("changes", "[]"))
         if not isinstance(changes, list) or not 1 <= len(changes) <= 30:
@@ -241,6 +242,7 @@ def sync(class_id, period_id):
                 else:
                     if grade is None:
                         grade = create_grade(
+                            ecole_id=ecole_id,
                             enrollment_id=eid,
                             course_id=cid,
                             period_id=period_id,
@@ -353,11 +355,9 @@ def print_report(class_id, period_id, kind):
 
 
 def _report_presentation():
-    from flask import current_app
+    from app.tenant_presentation import resolve_presentation
 
-    presentation = {}
-    current_app.update_template_context(presentation)
-    return presentation["ui_theme"], presentation["report_layout"]
+    return resolve_presentation()
 
 
 def _editor_context(class_id, period_id):

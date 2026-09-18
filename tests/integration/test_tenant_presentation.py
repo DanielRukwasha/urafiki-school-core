@@ -1,14 +1,12 @@
-"""Presentation contract tests; backend host resolution is tested after integration."""
+"""Presentation contract tests, including real per-domain tenant resolution
+(app/tenant_presentation.py) now that the multi-tenant backend is merged."""
 
 import json
 from pathlib import Path
 
 import pytest
-from flask import request
 
 from app.ui.access import access_notice
-from app.ui.reports import build_report_layout
-from app.ui.theming import build_theme
 
 EXAMPLES = json.loads(
     (Path(__file__).parents[1] / "fixtures/tenant_presentations.json").read_text(
@@ -18,15 +16,40 @@ EXAMPLES = json.loads(
 
 
 @pytest.fixture()
-def example_presentations(app):
-    @app.context_processor
-    def fixture_context():
-        sample = EXAMPLES["horizon" if request.host.startswith("horizon") else "rivage"]
-        return {
-            "ui_theme": build_theme(sample["branding"]),
-            "report_layout": build_report_layout(sample["report"]),
-        }
+def example_presentations(db, calculation_strategy_standard):
+    """A real Institution + TenantConfig per fixture school, each on its
+    own domain — so the assertions below exercise the actual
+    resolve_tenant() -> app/tenant_presentation.py adapter path, not a
+    stand-in context processor."""
+    from app.models.institution import Institution
+    from app.models.tenant_config import TenantConfig
 
+    for slug, sample in EXAMPLES.items():
+        branding, report = sample["branding"], sample["report"]
+        institution = Institution(
+            name=branding["display_name"],
+            short_code=slug.upper(),
+            domain=f"{slug}.localhost",
+            locale=branding["locale"],
+        )
+        db.session.add(institution)
+        db.session.commit()
+        db.session.add(
+            TenantConfig(
+                ecole_id=institution.id,
+                calculation_strategy_key="STANDARD",
+                percentage_decimal_places=2,
+                mentions=[],
+                eliminatory_course_codes=[],
+                report_signatures=report.get("signatures", []),
+                feature_flags={},
+                primary_color=branding.get("primary_color"),
+                logo_url=branding.get("logo_url"),
+                report_header=next(iter(report.get("header_lines", [])), None),
+                report_legal_mentions=report.get("legal_text"),
+            )
+        )
+        db.session.commit()
     return EXAMPLES
 
 

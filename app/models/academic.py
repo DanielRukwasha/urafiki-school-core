@@ -7,13 +7,17 @@ per deployment and per year.
 
 from app.extensions import db
 from app.models.mixins import SoftDeleteMixin, TimestampMixin
+from app.models.tenant_scope import TenantScopedModel
 
 
-class AcademicYear(db.Model, TimestampMixin, SoftDeleteMixin):
+class AcademicYear(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "academic_years"
+    __table_args__ = (
+        db.UniqueConstraint("ecole_id", "label", name="uq_academic_year_ecole_label"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    label = db.Column(db.String(20), nullable=False, unique=True)  # e.g. "2025-2026"
+    label = db.Column(db.String(20), nullable=False)  # e.g. "2025-2026"
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     is_current = db.Column(db.Boolean, nullable=False, default=False)
@@ -32,12 +36,15 @@ class AcademicYear(db.Model, TimestampMixin, SoftDeleteMixin):
         return f"<AcademicYear {self.label}>"
 
 
-class Section(db.Model, TimestampMixin, SoftDeleteMixin):
+class Section(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "sections"
+    __table_args__ = (
+        db.UniqueConstraint("ecole_id", "code", name="uq_section_ecole_code"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    code = db.Column(db.String(20), nullable=False, unique=True)
+    code = db.Column(db.String(20), nullable=False)
     description = db.Column(db.String(300), nullable=True)
 
     school_classes = db.relationship("SchoolClass", back_populates="section")
@@ -46,10 +53,12 @@ class Section(db.Model, TimestampMixin, SoftDeleteMixin):
         return f"<Section {self.code}>"
 
 
-class SchoolClass(db.Model, TimestampMixin, SoftDeleteMixin):
+class SchoolClass(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "school_classes"
     __table_args__ = (
-        db.UniqueConstraint("academic_year_id", "name", name="uq_class_year_name"),
+        db.UniqueConstraint(
+            "ecole_id", "academic_year_id", "name", name="uq_class_ecole_year_name"
+        ),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -71,11 +80,14 @@ class SchoolClass(db.Model, TimestampMixin, SoftDeleteMixin):
         return f"<SchoolClass {self.name}>"
 
 
-class EvaluationPeriod(db.Model, TimestampMixin, SoftDeleteMixin):
+class EvaluationPeriod(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "evaluation_periods"
     __table_args__ = (
         db.UniqueConstraint(
-            "academic_year_id", "sequence_order", name="uq_period_year_sequence"
+            "ecole_id",
+            "academic_year_id",
+            "sequence_order",
+            name="uq_period_ecole_year_sequence",
         ),
     )
 

@@ -20,6 +20,49 @@ EXAMPLES = json.loads(
 )
 
 
+def _seed_example_tenants():
+    """Real Institution + TenantConfig rows for every fixture school, so
+    requests to `<slug>.localhost` resolve through the real
+    resolve_tenant() -> app/tenant_presentation.py path instead of a
+    stand-in context processor — resolve_tenant() 404s any domain with no
+    matching Institution before a view or context processor ever runs."""
+    from app.extensions import db
+    from app.models.institution import Institution
+    from app.models.platform import CalculationStrategy
+    from app.models.tenant_config import TenantConfig
+
+    if CalculationStrategy.query.filter_by(key="STANDARD").first() is None:
+        db.session.add(CalculationStrategy(key="STANDARD", description="Standard."))
+        db.session.commit()
+
+    for slug, sample in EXAMPLES.items():
+        branding, report = sample["branding"], sample["report"]
+        institution = Institution(
+            name=branding["display_name"],
+            short_code=slug.upper(),
+            domain=f"{slug}.localhost",
+            locale=branding["locale"],
+        )
+        db.session.add(institution)
+        db.session.commit()
+        db.session.add(
+            TenantConfig(
+                ecole_id=institution.id,
+                calculation_strategy_key="STANDARD",
+                percentage_decimal_places=2,
+                mentions=[],
+                eliminatory_course_codes=[],
+                report_signatures=report.get("signatures", []),
+                feature_flags={},
+                primary_color=branding.get("primary_color"),
+                logo_url=branding.get("logo_url"),
+                report_header=next(iter(report.get("header_lines", [])), None),
+                report_legal_mentions=report.get("legal_text"),
+            )
+        )
+        db.session.commit()
+
+
 def report_context(slug, count=2):
     sample = EXAMPLES[slug]
     maximum = Decimal("20") if slug == "rivage" else Decimal("100")
@@ -52,6 +95,8 @@ def report_context(slug, count=2):
 def branded_app(app, tmp_path):
     Image = pytest.importorskip("PIL.Image")
     ImageDraw = pytest.importorskip("PIL.ImageDraw")
+
+    _seed_example_tenants()
 
     static = tmp_path / "static"
     shutil.copytree(app.static_folder, static)

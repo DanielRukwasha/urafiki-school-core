@@ -9,16 +9,18 @@ import enum
 
 from app.extensions import db
 from app.models.mixins import SoftDeleteMixin, TimestampMixin, utcnow
+from app.models.tenant_scope import TenantScopedModel
 
 
-class Grade(db.Model, TimestampMixin, SoftDeleteMixin):
+class Grade(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "grades"
     __table_args__ = (
         db.UniqueConstraint(
+            "ecole_id",
             "enrollment_id",
             "course_id",
             "period_id",
-            name="uq_grade_enrollment_course_period",
+            name="uq_grade_ecole_enrollment_course_period",
         ),
         db.CheckConstraint("score >= 0", name="ck_grade_score_non_negative"),
     )
@@ -58,7 +60,7 @@ class GradeAuditAction(str, enum.Enum):
     DELETE = "DELETE"
 
 
-class GradeAuditLog(db.Model):
+class GradeAuditLog(db.Model, TenantScopedModel):
     """Immutable audit record. Never updated after insert."""
 
     __tablename__ = "grade_audit_logs"

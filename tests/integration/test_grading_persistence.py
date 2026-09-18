@@ -12,6 +12,7 @@ def test_duplicate_grade_for_same_course_and_period_is_rejected(
 ):
     user, _ = make_user(email="teacher@example.com")
     audit_service.create_grade(
+        ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
         course_id=course.id,
         period_id=evaluation_period.id,
@@ -23,6 +24,7 @@ def test_duplicate_grade_for_same_course_and_period_is_rejected(
 
     with pytest.raises(IntegrityError):
         audit_service.create_grade(
+            ecole_id=enrollment.ecole_id,
             enrollment_id=enrollment.id,
             course_id=course.id,
             period_id=evaluation_period.id,
@@ -38,6 +40,7 @@ def test_negative_score_violates_check_constraint(
 ):
     user, _ = make_user(email="teacher@example.com")
     grade = Grade(
+        ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
         course_id=course.id,
         period_id=evaluation_period.id,
@@ -53,6 +56,7 @@ def test_negative_score_violates_check_constraint(
 def test_create_grade_writes_audit_log(db, enrollment, course, evaluation_period, make_user):
     user, _ = make_user(email="teacher@example.com")
     grade = audit_service.create_grade(
+        ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
         course_id=course.id,
         period_id=evaluation_period.id,
@@ -62,7 +66,11 @@ def test_create_grade_writes_audit_log(db, enrollment, course, evaluation_period
     )
     db.session.commit()
 
-    logs = GradeAuditLog.query.filter_by(grade_id=grade.id).all()
+    logs = (
+        GradeAuditLog.query.execution_options(skip_tenant_filter=True)
+        .filter_by(grade_id=grade.id)
+        .all()
+    )
     assert len(logs) == 1
     assert logs[0].action == GradeAuditAction.CREATE
     assert logs[0].old_value is None
@@ -75,6 +83,7 @@ def test_update_grade_writes_audit_log_with_old_and_new_value(
 ):
     user, _ = make_user(email="teacher@example.com")
     grade = audit_service.create_grade(
+        ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
         course_id=course.id,
         period_id=evaluation_period.id,
@@ -90,7 +99,8 @@ def test_update_grade_writes_audit_log_with_old_and_new_value(
     db.session.commit()
 
     logs = (
-        GradeAuditLog.query.filter_by(grade_id=grade.id)
+        GradeAuditLog.query.execution_options(skip_tenant_filter=True)
+        .filter_by(grade_id=grade.id)
         .order_by(GradeAuditLog.id)
         .all()
     )
@@ -106,6 +116,7 @@ def test_delete_grade_keeps_audit_log_with_snapshot(
 ):
     user, _ = make_user(email="teacher@example.com")
     grade = audit_service.create_grade(
+        ecole_id=enrollment.ecole_id,
         enrollment_id=enrollment.id,
         course_id=course.id,
         period_id=evaluation_period.id,
@@ -120,9 +131,15 @@ def test_delete_grade_keeps_audit_log_with_snapshot(
     db.session.commit()
 
     assert db.session.get(Grade, grade_id) is None
-    logs = GradeAuditLog.query.filter_by(
-        enrollment_id=enrollment.id, course_id=course.id, period_id=evaluation_period.id
-    ).all()
+    logs = (
+        GradeAuditLog.query.execution_options(skip_tenant_filter=True)
+        .filter_by(
+            enrollment_id=enrollment.id,
+            course_id=course.id,
+            period_id=evaluation_period.id,
+        )
+        .all()
+    )
     assert any(log.action == GradeAuditAction.DELETE for log in logs)
     delete_log = next(log for log in logs if log.action == GradeAuditAction.DELETE)
     assert delete_log.grade_id is None

@@ -11,6 +11,7 @@ from flask_login import UserMixin
 
 from app.extensions import bcrypt, db
 from app.models.mixins import SoftDeleteMixin, TimestampMixin
+from app.models.tenant_scope import TenantScopedModel
 
 
 class RoleEnum(str, enum.Enum):
@@ -19,11 +20,14 @@ class RoleEnum(str, enum.Enum):
     SECRETARIAT = "SECRETARIAT"
 
 
-class User(db.Model, UserMixin, TimestampMixin, SoftDeleteMixin):
+class User(db.Model, UserMixin, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        db.UniqueConstraint("ecole_id", "email", name="uq_user_ecole_email"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(200), nullable=False, unique=True, index=True)
+    email = db.Column(db.String(200), nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)

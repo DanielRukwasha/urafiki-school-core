@@ -3,13 +3,19 @@
 ## État de cette livraison
 
 Branche : `feat/frontend-multitenant-theming`, construite sur le portail de la PR #33.
-Les chantiers indépendants 1, 2 et 4 sont préparés. La résolution réelle du tenant,
-les états d’authentification et la console super-admin ne sont pas simulés en production.
+La PR backend #39 est fusionnée : la résolution réelle du tenant est maintenant
+raccordée via `app/tenant_presentation.py`, qui traduit l'`Institution`/`TenantConfig`
+de l'école résolue par `resolve_tenant()` vers les dictionnaires de configuration que
+`build_theme()`/`build_report_layout()` attendent — ce module est le seul autorisé à
+importer à la fois les modèles tenant et ces constructeurs de présentation, précisément
+pour que `app/ui/` reste indépendant de la base (voir son propre docstring).
 
-La règle de séquencement impose d’attendre la fusion de la PR backend #39.
-Le contrat de référence est publié dans le [journal #40](https://github.com/DanielRukwasha/urafiki-school-core/issues/40).
-Aucun modèle ni migration n’a été modifié. Le contexte neutre actuel est volontairement
-sans accès à la base : il doit être remplacé par l’adaptateur après fusion.
+Champs non encore stockés en base (accent/neutre/favicon, colonnes/libellés/disposition
+persistés) : omis plutôt qu'inventés — les constructeurs ont déjà des replis validés et
+accessibles pour tout champ absent. Les états d'authentification et la console
+super-admin restent non branchés en production (`access_notice` toujours `None` en
+dehors des tests) ; le contrat de référence reste publié dans le
+[journal #40](https://github.com/DanielRukwasha/urafiki-school-core/issues/40).
 
 ## Composants
 

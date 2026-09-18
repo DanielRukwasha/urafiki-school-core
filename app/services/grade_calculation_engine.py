@@ -45,13 +45,21 @@ class PromotionDecision(str, enum.Enum):
     UNDETERMINED = "UNDETERMINED"
 
 
-def quantize_percentage(value: Decimal) -> Decimal:
-    """Round a percentage to 2 decimal places using ROUND_HALF_UP.
+def quantize_percentage(value: Decimal, decimal_places: int = 2) -> Decimal:
+    """Round a percentage to ``decimal_places`` using ROUND_HALF_UP.
 
+    ``decimal_places`` is a per-tenant presentation setting (see
+    ``TenantConfig.percentage_decimal_places`` /
+    ``app/services/tenant_calculation.py``) — it defaults to 2 to match the
+    platform-wide historical behaviour, never silently to something else.
     This must only be applied to a final, presentation-facing value —
     never to an intermediate sum used in further arithmetic.
     """
-    return value.quantize(PERCENT_QUANTUM, rounding=ROUND_HALF_UP)
+    if decimal_places == 2:
+        quantum = PERCENT_QUANTUM
+    else:
+        quantum = Decimal(1).scaleb(-decimal_places)
+    return value.quantize(quantum, rounding=ROUND_HALF_UP)
 
 
 @dataclass(frozen=True)
