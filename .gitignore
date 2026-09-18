@@ -11,3 +11,6 @@ instance/
 htmlcov/
 .coverage
 .coverage.*
+
+tmp/
+output/

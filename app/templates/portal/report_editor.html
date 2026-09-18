@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "components/macros.html" import heading %}
+{% block title %}Gabarit de bulletin{% endblock %}
+{% block content %}
+<a href="{{ url_for('portal.results', class_id=klass.id, period_id=period.id) }}">← Résultats</a>
+{{ heading('DIRECTION', 'Gabarit de bulletin', 'Vérifiez la présentation avant publication. Cet aperçu ne crée aucun document officiel.') }}
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+<div class="editor-layout">
+<section class="panel">
+<form method="post" action="{{ url_for('portal.report_preview', class_id=klass.id, period_id=period.id) }}" target="report-preview" id="report-editor">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <fieldset><legend>Présentation</legend>
+  <div class="form-row">
+    <div class="field"><label for="report-locale">Langue</label><select name="locale" id="report-locale">{% for code, label in [('fr','Français'),('en','English')] %}<option value="{{ code }}" {% if report_layout.locale == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="report-orientation">Format A4</label><select name="orientation" id="report-orientation">{% for value in ['portrait','landscape'] %}<option value="{{ value }}" {% if report_layout.orientation == value %}selected{% endif %}>{{ 'Portrait' if value == 'portrait' else 'Paysage' }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="font-size">Taille du texte (points)</label><input type="number" id="font-size" name="font_size" min="9" max="12" value="{{ report_layout.font_size }}" required></div>
+  </div>
+  <div class="field"><label for="header-alignment">Alignement de l’en-tête</label><select id="header-alignment" name="header_alignment"><option value="left" {% if report_layout.header_alignment == 'left' %}selected{% endif %}>À gauche</option><option value="center" {% if report_layout.header_alignment == 'center' %}selected{% endif %}>Centré</option></select></div>
+  <p><input type="checkbox" id="show-logo" name="show_logo" {% if report_layout.show_logo %}checked{% endif %}> <label for="show-logo">Afficher le logo configuré</label></p>
+  <div class="field"><label for="header-lines">Lignes d’en-tête (quatre maximum)</label><textarea id="header-lines" name="header_lines" maxlength="1200">{{ report_layout.header_lines|join('\n') }}</textarea></div>
+  </fieldset>
+  <fieldset><legend>Colonnes du bulletin</legend><p class="muted">Choisissez l’ordre. Le cours et la cote restent obligatoires.</p>
+  {% for position in range(6) %}<div class="field"><label for="column-{{ position }}">Colonne {{ position + 1 }}</label><select id="column-{{ position }}" name="column"><option value="">Non affichée</option>{% for key, label in column_options.items() %}<option value="{{ key }}" {% if position < report_layout.columns|length and report_layout.columns[position] == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>{% endfor %}
+  </fieldset>
+  <fieldset><legend>Libellés et mentions</legend>
+  {% for key in ['bulletin_title','ranking_title','course','code','score','maximum','coefficient','weighted'] %}<div class="field"><label for="label-{{ key }}">{{ default_labels[key] }}</label><input id="label-{{ key }}" name="label_{{ key }}" value="{{ custom_labels.get(key, '') }}" maxlength="300" placeholder="{{ report_layout.labels[key] }}"></div>{% endfor %}
+  <div class="field"><label for="legal-text">Mentions légales</label><textarea id="legal-text" name="legal_text" maxlength="2000">{{ report_layout.legal_text }}</textarea></div>
+  <div class="field"><label for="signatures">Blocs de signature (un par ligne, quatre maximum)</label><textarea id="signatures" name="signatures" maxlength="600">{{ report_layout.signatures|join('\n') }}</textarea></div>
+  </fieldset>
+  <button type="submit">Prévisualiser sans publier</button>
+  <p class="muted">Les modifications de cet écran ne sont pas enregistrées dans la configuration de l’établissement.</p>
+</form>
+</section>
+<section class="preview-panel" aria-label="Aperçu du bulletin">
+  <h2>Aperçu non officiel</h2>
+  <iframe title="Aperçu non officiel du bulletin" name="report-preview" id="report-preview" sandbox="allow-same-origin" src="{{ url_for('portal.report_preview', class_id=klass.id, period_id=period.id) }}"></iframe>
+</section>
+</div>
+{% endblock %}
+

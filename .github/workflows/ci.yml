@@ -1,15 +1,11 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
-
 jobs:
   test:
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:16
@@ -24,29 +20,47 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       FLASK_ENV: testing
       SECRET_KEY: ci-only-secret
       DATABASE_URL: postgresql+psycopg://urafiki:urafiki@localhost:5432/urafiki_test
-
+      TEST_DATABASE_URL: postgresql+psycopg://urafiki:urafiki@localhost:5432/urafiki_test
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
-
-      - name: Lint with ruff
+      - name: Lint
         run: ruff check .
-
       - name: Apply migrations against PostgreSQL
         run: flask --app wsgi.py db upgrade
+      - name: Run tests against PostgreSQL
+        run: pytest tests/unit tests/integration --cov=app --cov-report=term-missing
+  browser-pdf:
+    runs-on: ubuntu-latest
+    env:
+      REQUIRE_PDF: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install browser and PDF dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+          pip install -r requirements-browser.txt -r requirements-pdf.txt
+          python -m playwright install --with-deps chromium
+      - name: Exercise browser workflows and native A4 rendering
+        run: pytest tests/browser tests/integration/test_portal_pdf.py tests/integration/test_report_presentation_pdf.py -q
+      - name: Upload visual review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-visual-review
+          path: tmp/portal-review/
 
-      - name: Run tests with coverage
-        run: pytest --cov=app --cov-report=term-missing

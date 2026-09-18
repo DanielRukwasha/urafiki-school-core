@@ -1,18 +1,29 @@
 {% extends "base.html" %}
+{% from "components/macros.html" import field %}
+{% from "components/theme.html" import identity %}
 {% block title %}Connexion{% endblock %}
 {% block content %}
-<h1>Connexion</h1>
-<form method="post" novalidate>
-  {{ form.hidden_tag() }}
-  <p>
-    {{ form.email.label }}<br>
-    {{ form.email(size=40) }}
-  </p>
-  <p>
-    {{ form.password.label }}<br>
-    {{ form.password(size=40) }}
-  </p>
-  <p>{{ form.remember_me.label }} {{ form.remember_me() }}</p>
-  <p>{{ form.submit() }}</p>
-</form>
+<section class="panel login-panel" aria-labelledby="login-title">
+  {{ identity(ui_theme, true) }}
+  {% if access_notice %}
+  <div class="alert" role="alert" data-access-state="{{ access_notice.code }}">
+    <h1 id="login-title">{{ access_notice.title }}</h1>
+    <p>{{ access_notice.message }}</p>
+    {% if access_notice.retry_after %}<p>Nouvelle tentative dans {{ access_notice.retry_after }} secondes.</p>{% endif %}
+  </div>
+  {% else %}
+  <h1 id="login-title">Connexion</h1>
+  <p class="muted">Accédez à votre espace scolaire.</p>
+  {% endif %}
+  {% if not access_notice or access_notice.allow_login %}
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.email, 'username') }}
+    {{ field(form.password, 'current-password') }}
+    <p>{{ form.remember_me() }} {{ form.remember_me.label }}</p>
+    {{ form.submit(class_="button") }}
+  </form>
+  {% endif %}
+</section>
 {% endblock %}
+

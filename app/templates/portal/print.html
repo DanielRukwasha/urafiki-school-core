@@ -1,0 +1,89 @@
+{% from "components/theme.html" import theme_tokens %}
+{% set labels = report_layout.labels %}
+<!doctype html>
+<html lang="{{ report_layout.locale }}">
+<head>
+  <meta charset="utf-8">
+  <title>{{ labels.bulletin_title if kind == 'bulletins' else labels.ranking_title }} · {{ ui_theme.name }}</title>
+  {{ theme_tokens(ui_theme) }}
+  {% include "portal/_report_styles.html" %}
+</head>
+<body>
+  <div class="report-footer">{{ ui_theme.name }}{% if preview %} · {{ labels.preview }}{% endif %}</div>
+  <div class="report-page-label">{{ labels.page }} <span class="page-number"></span></div>
+  {% if preview %}<div class="preview-banner" role="status">{{ labels.preview }}</div>{% endif %}
+  {% if not pdf %}
+  <nav class="toolbar" aria-label="{{ labels.back }}">
+    <a href="{{ url_for('portal.results', class_id=klass.id, period_id=period.id) }}">{{ labels.back }}</a>
+    {% if not preview %} · <a href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}">{{ labels.download }}</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% macro header(title) %}
+  <header class="report-header">
+    {% if report_layout.show_logo and report_logo_url %}<img class="report-logo" src="{{ report_logo_url }}" alt="" width="72" height="72">{% endif %}
+    <p class="school-name">{{ ui_theme.name }}</p>
+    {% for line in report_layout.header_lines %}<p class="muted">{{ line }}</p>{% endfor %}
+    <h1>{{ title }}</h1>
+    <p>{{ klass.name }} · {{ klass.academic_year.label }} · {{ period.name }}</p>
+  </header>
+  {% endmacro %}
+  {% macro footer() %}
+    {% if report_layout.legal_text %}<p class="legal-text">{{ report_layout.legal_text }}</p>{% endif %}
+    {% if report_layout.signatures %}<div class="signatures">{% for signature in report_layout.signatures %}<div>{{ signature }}</div>{% endfor %}</div>{% endif %}
+  {% endmacro %}
+  {% if kind == 'bulletins' %}
+    {% for row in rows %}
+    <section class="report">
+      {{ header(labels.bulletin_title) }}
+      <div class="meta">
+        <h2>{{ row.enrollment.student.full_name }}</h2>
+        <p>{{ labels.student_id }} : {{ row.enrollment.student.matricule }}</p>
+        <p>{{ labels.entered }} : {{ row.entered }} / {{ courses|length }} · {{ labels.complete if courses and row.entered == courses|length else labels.provisional }}</p>
+      </div>
+      <table>
+        <thead><tr>{% for column in report_layout.columns %}<th scope="col">{{ labels[{'max_score':'maximum'}.get(column, column)] }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for course in courses %}
+          {% set grade = grades.get((row.enrollment.id, course.id)) %}
+          <tr>{% for column in report_layout.columns %}
+            <td class="{{ 'numeric' if column not in ['course', 'code'] else '' }}">
+            {% if column == 'course' %}{{ course.name }}
+            {% elif column == 'code' %}{{ course.code }}
+            {% elif column == 'coefficient' %}{{ course.coefficient }}
+            {% elif column == 'max_score' %}{{ course.max_score }}
+            {% elif column == 'score' %}{{ grade.score if grade else '—' }}
+            {% elif column == 'weighted' %}{{ '%.2f'|format(grade.score * course.coefficient) if grade else '—' }}
+            {% endif %}
+            </td>
+          {% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="summary">
+        <p><strong>{{ labels.total }} : {{ '%.2f'|format(row.total.weighted_points) }} / {{ '%.2f'|format(row.total.weighted_possible) }}</strong></p>
+        <p>{{ labels.result }} : {{ (row.percentage ~ ' %') if row.percentage is not none else labels.not_evaluated }} · {{ labels.rank }} : {{ ranks.get(row.enrollment.id, '—') }}</p>
+      </div>
+      <p class="note">{{ labels.missing }} {{ labels.period_note }}</p>
+      {{ footer() }}
+    </section>
+    {% else %}{{ header(labels.bulletin_title) }}<p>{{ labels.empty }}</p>{% endfor %}
+  {% else %}
+    {{ header(labels.ranking_title) }}
+    <table>
+      <thead><tr>{% for column in report_layout.ranking_columns %}<th scope="col">{{ labels[column] }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in rows %}
+        <tr>{% for column in report_layout.ranking_columns %}<td>
+          {% if column == 'rank' %}{{ ranks.get(row.enrollment.id, '—') }}
+          {% elif column == 'student' %}{{ row.enrollment.student.full_name }}
+          {% elif column == 'student_id' %}{{ row.enrollment.student.matricule }}
+          {% elif column == 'entered' %}{{ row.entered }} / {{ courses|length }}
+          {% elif column == 'result' %}{{ (row.percentage ~ ' %') if row.percentage is not none else '—' }}{% endif %}
+        </td>{% endfor %}</tr>
+      {% else %}<tr><td colspan="{{ report_layout.ranking_columns|length }}">{{ labels.empty }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <p class="note">{{ labels.ranking_note }}</p>
+    {{ footer() }}
+  {% endif %}
+</body>
+</html>
+

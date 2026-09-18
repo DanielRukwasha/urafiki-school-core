@@ -144,3 +144,13 @@ Suivi détaillé via les [Issues](../../issues) et [Milestones](../../milestones
 ## Multi-tenant
 
 Provisionner une nouvelle école : `flask tenant create --name ... --domain ...` — voir [TENANT_ONBOARDING.md](TENANT_ONBOARDING.md) pour la procédure complète et [ARCHITECTURE_MULTITENANT.md](ARCHITECTURE_MULTITENANT.md) pour le fonctionnement de l'isolation. Aucune étape de cette procédure ne touche la base de données à la main.
+
+## Portail frontend
+
+Le portail enseignant et direction est accessible sur /portal/ apres connexion.
+Il comprend les attributions, la saisie avec brouillons locaux et synchronisation HTMX,
+les resultats de periode et les bulletins/palmares A4.
+Voir [architecture, fonctionnement et verification](docs/frontend.md).
+Pour les PDF : pip install -r requirements-pdf.txt et installer les bibliotheques natives Pango.
+Pour les tests navigateur : pip install -r requirements-browser.txt, puis
+python -m playwright install chromium et pytest tests/browser -q.
