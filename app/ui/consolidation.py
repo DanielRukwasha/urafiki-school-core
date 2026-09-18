@@ -71,6 +71,12 @@ class PublicationTransition:
 
 TRANSITIONS = (
     PublicationTransition(
+        "submit",
+        "Soumettre pour consolidation",
+        "Signale à la direction que l'encodage de la classe est prêt à être consolidé.",
+        False,
+    ),
+    PublicationTransition(
         "consolidate", "Consolider", "Fige les données de la période pour la validation.", False
     ),
     PublicationTransition(

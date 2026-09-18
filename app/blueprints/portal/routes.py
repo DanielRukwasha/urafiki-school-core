@@ -14,7 +14,7 @@ from app.models.grading import Grade
 from app.models.student import Enrollment, EnrollmentStatus, Student
 from app.models.teaching import TeacherAssignment
 from app.models.user import RoleEnum, User
-from app.security.rbac import roles_required
+from app.security.rbac import is_titulaire, require_direction_or_titulaire, roles_required
 from app.services.audit_service import create_grade, update_grade_score
 from app.services.grade_calculation_engine import (
     CourseGradeInput,
@@ -34,6 +34,12 @@ def active(query, model):
 
 
 def courses_for(class_id=None):
+    """Courses this user may EDIT grades for — the authorization source
+    of truth for `sync()`. Titulariat never widens this: a titulaire who
+    isn't assigned to a course still can't touch its grades, matching
+    "il ne peut jamais modifier une cote encodée par un autre
+    enseignant". See `display_courses_for` for what a titulaire may
+    additionally *see*."""
     query = active(Course.query, Course).join(SchoolClass).filter(SchoolClass.archived_at.is_(None))
     if class_id is not None:
         query = query.filter(Course.school_class_id == class_id)
@@ -49,6 +55,21 @@ def courses_for(class_id=None):
     ]
 
 
+def display_courses_for(class_id, klass):
+    """Courses to SHOW for this class: every course, if the viewer is the
+    class's titulaire (DIRECTION/SECRETARIAT already see everything via
+    `courses_for`) — the read-only, class-wide grade visibility a
+    titulaire has regardless of which courses they personally teach."""
+    if current_user.role == RoleEnum.ENSEIGNANT and is_titulaire(current_user, klass):
+        return (
+            active(Course.query, Course)
+            .filter(Course.school_class_id == class_id)
+            .order_by(Course.name)
+            .all()
+        )
+    return courses_for(class_id)
+
+
 def context(class_id, period_id):
     klass = db.get_or_404(SchoolClass, class_id)
     period = db.get_or_404(EvaluationPeriod, period_id)
@@ -56,7 +77,8 @@ def context(class_id, period_id):
         abort(404)
     if period.academic_year_id != klass.academic_year_id:
         abort(404)
-    courses = courses_for(class_id)
+    editable = courses_for(class_id)
+    courses = display_courses_for(class_id, klass)
     if current_user.role == RoleEnum.ENSEIGNANT and not courses:
         abort(403)
     enrollments = (
@@ -80,6 +102,7 @@ def context(class_id, period_id):
         klass=klass,
         period=period,
         courses=courses,
+        editable_course_ids={c.id for c in editable},
         enrollments=enrollments,
         grades={(g.enrollment_id, g.course_id): g for g in grades},
     )
@@ -108,7 +131,11 @@ def dashboard():
     ids = {c.school_class_id for c in courses}
     classes = active(SchoolClass.query, SchoolClass).order_by(SchoolClass.name).all()
     if current_user.role == RoleEnum.ENSEIGNANT:
-        classes = [c for c in classes if c.id in ids]
+        # Server-derived, never filtered client-side: a course assignment
+        # grants access to that course's class, and titulariat grants
+        # access to that class even without a course assignment there.
+        titulaire_ids = {c.id for c in classes if c.titulaire_id == current_user.id}
+        classes = [c for c in classes if c.id in ids or c.id in titulaire_ids]
     classes = [c for c in classes if not c.academic_year.is_archived]
     return render_template("portal/dashboard.html", classes=classes, courses=courses)
 
@@ -117,7 +144,26 @@ def dashboard():
 @roles_required(RoleEnum.DIRECTION)
 def assignments():
     error = None
-    if request.method == "POST":
+    if request.method == "POST" and request.form.get("kind") == "titulaire":
+        klass = db.session.get(SchoolClass, request.form.get("class_id", type=int))
+        teacher = db.session.get(User, request.form.get("titulaire_teacher_id", type=int))
+        if (
+            not klass
+            or klass.is_archived
+            or klass.academic_year.is_archived
+            or not teacher
+            or not teacher.is_active
+            or teacher.role != RoleEnum.ENSEIGNANT
+        ):
+            error = "Sélectionnez une classe et un enseignant actif valides."
+        else:
+            # A per-class scope, set directly on the class — never a role
+            # or a table of its own, so there is only ever one place a
+            # titulaire's status can live.
+            klass.titulaire_id = teacher.id
+            db.session.commit()
+            return redirect(url_for("portal.assignments"))
+    elif request.method == "POST":
         teacher = db.session.get(User, request.form.get("teacher_id", type=int))
         course = db.session.get(Course, request.form.get("course_id", type=int))
         if (
@@ -148,6 +194,7 @@ def assignments():
         "portal/assignments.html",
         error=error,
         courses=courses_for(),
+        classes=active(SchoolClass.query, SchoolClass).order_by(SchoolClass.name).all(),
         teachers=active(User.query, User)
         .filter_by(role=RoleEnum.ENSEIGNANT, is_active_account=True)
         .all(),
@@ -173,6 +220,7 @@ def sync(class_id, period_id):
     except (ValueError, TypeError):
         return "Lot invalide (1 à 30 cellules).", 400
     courses = {c.id: c for c in ctx["courses"]}
+    editable_course_ids = ctx["editable_course_ids"]
     enrollment_ids = {e.id for e in ctx["enrollments"]}
     results = []
     seen = set()
@@ -184,8 +232,12 @@ def sync(class_id, period_id):
             type(eid) is not int
             or type(cid) is not int
             or eid not in enrollment_ids
-            or cid not in courses
+            or cid not in editable_course_ids
         ):
+            # A titulaire may SEE every course's grades in this class
+            # (ctx["courses"]) but writes are still bounded to their own
+            # TeacherAssignment scope — a course they can see but not
+            # edit lands here, same as any other unauthorized cell.
             abort(403)
         if (eid, cid) in seen:
             return "Cellule répétée dans le lot.", 400
@@ -347,8 +399,10 @@ def _server_consolidation_payload(class_id, period_id):
 
 
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/consolidation")
-@roles_required(RoleEnum.DIRECTION)
+@roles_required(*ALL_ROLES)
 def consolidation(class_id, period_id):
+    klass = db.get_or_404(SchoolClass, class_id)
+    require_direction_or_titulaire(klass)
     payload = _server_consolidation_payload(class_id, period_id)
     return render_template(
         "portal/consolidation.html",
@@ -357,14 +411,20 @@ def consolidation(class_id, period_id):
         preview_url=url_for(
             "portal.print_report", class_id=class_id, period_id=period_id, kind="bulletins"
         ),
-        transitions=_available_transitions(class_id, period_id, payload),
+        transitions=_available_transitions(class_id, period_id, payload, klass),
     )
 
 
-def _available_transitions(class_id, period_id, payload):
+def _available_transitions(class_id, period_id, payload, klass):
     from app.ui.consolidation import TRANSITIONS
 
     status = payload["publication"]["status"]
+    next_action = _next_action_for(status)
+    can_act = current_user.role == RoleEnum.DIRECTION or (
+        next_action == "submit" and is_titulaire(current_user, klass)
+    )
+    if not can_act:
+        return []
     return [
         {
             "action": t.action,
@@ -376,7 +436,7 @@ def _available_transitions(class_id, period_id, payload):
             ),
         }
         for t in TRANSITIONS
-        if _next_action_for(status) == t.action
+        if next_action == t.action
     ]
 
 
@@ -392,17 +452,23 @@ def _next_action_for(status):
 
 
 @bp.post("/classes/<int:class_id>/periods/<int:period_id>/consolidation/<action>")
-@roles_required(RoleEnum.DIRECTION)
+@roles_required(*ALL_ROLES)
 def transition(class_id, period_id, action):
     from app.services.deliberation_service import TransitionError, apply_transition
 
-    if action == "consolidate":
+    klass = db.get_or_404(SchoolClass, class_id)
+    if action == "submit":
+        require_direction_or_titulaire(klass)
+    elif current_user.role != RoleEnum.DIRECTION:
+        abort(403)
+
+    if action == "submit":
         payload = _server_consolidation_payload(class_id, period_id)
         if payload["blocking_items"]:
             return (
                 render_template(
                     "portal/preview_error.html",
-                    error="Consolidation bloquée : des cours n'ont pas toutes leurs cotes saisies.",
+                    error="Soumission bloquée : des cours n'ont pas toutes leurs cotes saisies.",
                 ),
                 409,
             )
