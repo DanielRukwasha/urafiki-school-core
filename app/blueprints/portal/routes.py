@@ -3,7 +3,7 @@
 import json
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, abort, g, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -33,15 +33,42 @@ def active(query, model):
     return query.filter(model.archived_at.is_(None))
 
 
+def _teaching_scope():
+    """Read the server-resolved class scope without granting global teacher rights."""
+    scope = getattr(g, "teaching_scope", None)
+    if not isinstance(scope, dict):
+        scope = getattr(g, "teacher_scope", None)
+    if not isinstance(scope, dict):
+        return {
+            "titular_class_ids": set(),
+            "editable_course_ids": None,
+            "submit_class_ids": set(),
+            "source": "legacy-assignment",
+        }
+
+    def ids(key):
+        return {value for value in scope.get(key, ()) if type(value) is int}
+
+    editable = scope.get("editable_course_ids")
+    return {
+        "titular_class_ids": ids("titular_class_ids"),
+        "editable_course_ids": None if editable is None else ids("editable_course_ids"),
+        "submit_class_ids": ids("submit_class_ids"),
+        "source": "server",
+    }
+
+
 def courses_for(class_id=None):
     query = active(Course.query, Course).join(SchoolClass).filter(SchoolClass.archived_at.is_(None))
     if class_id is not None:
         query = query.filter(Course.school_class_id == class_id)
     if current_user.role == RoleEnum.ENSEIGNANT:
-        query = query.join(TeacherAssignment).filter(
-            TeacherAssignment.teacher_id == current_user.id,
-            TeacherAssignment.archived_at.is_(None),
-        )
+        scope = _teaching_scope()
+        if class_id not in scope["titular_class_ids"]:
+            query = query.join(TeacherAssignment).filter(
+                TeacherAssignment.teacher_id == current_user.id,
+                TeacherAssignment.archived_at.is_(None),
+            )
     return [
         course
         for course in query.order_by(Course.name).all()
@@ -56,6 +83,7 @@ def context(class_id, period_id):
         abort(404)
     if period.academic_year_id != klass.academic_year_id:
         abort(404)
+    teaching_scope = _teaching_scope()
     courses = courses_for(class_id)
     if current_user.role == RoleEnum.ENSEIGNANT and not courses:
         abort(403)
@@ -76,12 +104,30 @@ def context(class_id, period_id):
         Grade.course_id.in_([c.id for c in courses]),
         Grade.period_id == period_id,
     ).all()
+    editable_course_ids = {course.id for course in courses}
+    if current_user.role == RoleEnum.ENSEIGNANT:
+        if teaching_scope["editable_course_ids"] is not None:
+            editable_course_ids = teaching_scope["editable_course_ids"].intersection(
+                {course.id for course in courses}
+            )
+        else:
+            editable_course_ids = {
+                course.id
+                for course in courses
+                if TeacherAssignment.query.filter_by(
+                    teacher_id=current_user.id, course_id=course.id
+                ).filter(TeacherAssignment.archived_at.is_(None)).first()
+            }
     return dict(
         klass=klass,
         period=period,
         courses=courses,
         enrollments=enrollments,
         grades={(g.enrollment_id, g.course_id): g for g in grades},
+        editable_course_ids=editable_course_ids,
+        is_titular=(class_id in teaching_scope["titular_class_ids"]),
+        can_submit=(class_id in teaching_scope["submit_class_ids"]),
+        teaching_scope_source=teaching_scope["source"],
     )
 
 
@@ -106,11 +152,16 @@ def session_check():
 def dashboard():
     courses = courses_for()
     ids = {c.school_class_id for c in courses}
+    teaching_scope = _teaching_scope()
+    if current_user.role == RoleEnum.ENSEIGNANT:
+        ids.update(teaching_scope["titular_class_ids"])
     classes = active(SchoolClass.query, SchoolClass).order_by(SchoolClass.name).all()
     if current_user.role == RoleEnum.ENSEIGNANT:
         classes = [c for c in classes if c.id in ids]
     classes = [c for c in classes if not c.academic_year.is_archived]
-    return render_template("portal/dashboard.html", classes=classes, courses=courses)
+    return render_template(
+        "portal/dashboard.html", classes=classes, courses=courses, teaching_scope=teaching_scope
+    )
 
 
 @bp.route("/assignments", methods=["GET", "POST"])
@@ -161,6 +212,27 @@ def grid(class_id, period_id):
     return render_template("portal/grid.html", **context(class_id, period_id))
 
 
+@bp.post("/classes/<int:class_id>/periods/<int:period_id>/submit")
+@roles_required(RoleEnum.ENSEIGNANT)
+def submit_class(class_id, period_id):
+    """Forward the titular submission to the backend state machine.
+
+    Submission is deliberately unavailable until the backend exposes its
+    audited transition handler; the frontend never advances the bulletin state
+    itself.
+    """
+    ctx = context(class_id, period_id)
+    if not ctx["can_submit"]:
+        abort(403)
+    handler = getattr(g, "submit_class_handler", None)
+    if not callable(handler):
+        abort(503, description="La soumission de classe n'est pas encore disponible.")
+    result = handler(class_id=class_id, period_id=period_id, user_id=current_user.id)
+    if isinstance(result, tuple):
+        return result
+    return result or ("Classe soumise pour consolidation.", 200)
+
+
 @bp.post("/classes/<int:class_id>/periods/<int:period_id>/sync")
 @roles_required(*EDIT_ROLES)
 def sync(class_id, period_id):
@@ -185,6 +257,10 @@ def sync(class_id, period_id):
             or type(cid) is not int
             or eid not in enrollment_ids
             or cid not in courses
+            or (
+                current_user.role == RoleEnum.ENSEIGNANT
+                and cid not in ctx["editable_course_ids"]
+            )
         ):
             abort(403)
         if (eid, cid) in seen:
@@ -234,6 +310,15 @@ def sync(class_id, period_id):
                 if grade and (grade.is_archived or grade.is_validated):
                     result.update(
                         state="error", message="Cote verrouillée. Contactez la direction."
+                    )
+                elif (
+                    current_user.role == RoleEnum.ENSEIGNANT
+                    and grade is not None
+                    and grade.entered_by_id != current_user.id
+                ):
+                    result.update(
+                        state="error",
+                        message="Cette cote a été saisie par un autre enseignant et reste en lecture seule.",
                     )
                 elif base != change["base"] and (not grade or grade.score != score):
                     result.update(
