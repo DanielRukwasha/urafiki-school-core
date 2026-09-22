@@ -68,20 +68,29 @@ class SchoolClass(db.Model, TenantScopedModel, TimestampMixin, SoftDeleteMixin):
     section_id = db.Column(
         db.Integer, db.ForeignKey("sections.id"), nullable=False, index=True
     )
+    # A class belongs to the (section, niveau) pair; its course grid is
+    # resolved from GrilleCours by that same pair plus academic_year_id —
+    # never stored directly on the class, so every class sharing a
+    # (section, niveau, year) shares one grid, one source of truth.
+    niveau_id = db.Column(
+        db.Integer, db.ForeignKey("niveaux.id"), nullable=False, index=True
+    )
     name = db.Column(db.String(100), nullable=False)  # e.g. "6ème A"
-    level_order = db.Column(db.Integer, nullable=False, default=0)
+    level_order = db.Column(db.Integer, nullable=False, default=0)  # deprecated, see Niveau
     # The homeroom teacher — a per-class scope, never a global role. A
     # teacher can be titulaire of this class and a plain course
     # attributaire (via TeacherAssignment) in another; nothing about being
     # titulaire is stored on the User account itself. Nullable: not every
-    # class has one assigned yet.
+    # class has one assigned yet. The *current* titulaire, for fast reads;
+    # TitulaireHistorique is the source of truth for "who was titulaire
+    # on such and such date".
     titulaire_id = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
     )
 
     academic_year = db.relationship("AcademicYear", back_populates="school_classes")
     section = db.relationship("Section", back_populates="school_classes")
-    courses = db.relationship("Course", back_populates="school_class")
+    niveau = db.relationship("Niveau", back_populates="school_classes")
     enrollments = db.relationship("Enrollment", back_populates="school_class")
     titulaire = db.relationship("User", foreign_keys=[titulaire_id])
 

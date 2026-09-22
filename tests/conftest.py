@@ -9,6 +9,13 @@ from app import create_app
 from app.extensions import db as _db
 from app.models.academic import AcademicYear, EvaluationPeriod, SchoolClass, Section
 from app.models.course import Course
+from app.models.grille import (
+    GrilleCours,
+    GrilleCoursLigne,
+    GrilleCoursLigneMaximum,
+    GroupeCours,
+    Niveau,
+)
 from app.models.institution import Institution
 from app.models.platform import CalculationStrategy
 from app.models.student import Enrollment, Student
@@ -170,12 +177,39 @@ def section(db, tenant_a):
 
 
 @pytest.fixture()
-def school_class(db, tenant_a, academic_year, section):
+def niveau(db, tenant_a):
+    n = Niveau(ecole_id=tenant_a.id, libelle="6eme", ordre_affichage=6)
+    db.session.add(n)
+    db.session.commit()
+    return n
+
+
+@pytest.fixture()
+def school_class(db, tenant_a, academic_year, section, niveau):
     klass = SchoolClass(
         ecole_id=tenant_a.id,
         academic_year_id=academic_year.id,
         section_id=section.id,
+        niveau_id=niveau.id,
         name="6eme A",
+        level_order=6,
+    )
+    db.session.add(klass)
+    db.session.commit()
+    return klass
+
+
+@pytest.fixture()
+def second_school_class(db, tenant_a, academic_year, section, niveau):
+    """A second class sharing the same (section, niveau, year) grid as
+    `school_class` — for scenarios needing two classes on one grid
+    (titulaire/attributaire scope tests, grid-sharing proofs)."""
+    klass = SchoolClass(
+        ecole_id=tenant_a.id,
+        academic_year_id=academic_year.id,
+        section_id=section.id,
+        niveau_id=niveau.id,
+        name="6eme B",
         level_order=6,
     )
     db.session.add(klass)
@@ -200,18 +234,59 @@ def evaluation_period(db, tenant_a, academic_year):
 
 
 @pytest.fixture()
-def course(db, tenant_a, school_class):
-    c = Course(
+def groupe_cours(db, tenant_a):
+    g = GroupeCours(ecole_id=tenant_a.id, libelle="Cours", ordre_affichage=1)
+    db.session.add(g)
+    db.session.commit()
+    return g
+
+
+@pytest.fixture()
+def grille_cours(db, tenant_a, section, niveau, academic_year):
+    g = GrilleCours(
         ecole_id=tenant_a.id,
-        school_class_id=school_class.id,
-        name="Mathematiques",
-        code="MATH",
-        coefficient=Decimal("4"),
-        max_score=Decimal("20"),
+        section_id=section.id,
+        niveau_id=niveau.id,
+        academic_year_id=academic_year.id,
     )
+    db.session.add(g)
+    db.session.commit()
+    return g
+
+
+@pytest.fixture()
+def course(db, tenant_a):
+    """The tenant-wide catalog entry — carries no weight/maximum of its
+    own; see `grille_ligne` for the grid line a Grade/TeacherAssignment
+    actually references."""
+    c = Course(ecole_id=tenant_a.id, name="Mathematiques", code="MATH")
     db.session.add(c)
     db.session.commit()
     return c
+
+
+@pytest.fixture()
+def grille_ligne(db, tenant_a, grille_cours, course, groupe_cours, evaluation_period):
+    ligne = GrilleCoursLigne(
+        ecole_id=tenant_a.id,
+        grille_cours_id=grille_cours.id,
+        cours_id=course.id,
+        groupe_cours_id=groupe_cours.id,
+        ordre_affichage=1,
+        ponderation=Decimal("4"),
+    )
+    db.session.add(ligne)
+    db.session.commit()
+    db.session.add(
+        GrilleCoursLigneMaximum(
+            ecole_id=tenant_a.id,
+            grille_cours_ligne_id=ligne.id,
+            periode_id=evaluation_period.id,
+            maximum=Decimal("20"),
+        )
+    )
+    db.session.commit()
+    return ligne
 
 
 @pytest.fixture()

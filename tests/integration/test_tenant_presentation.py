@@ -91,14 +91,14 @@ def test_access_states_are_explicit_and_accessible(app, client, code):
 
 
 def test_report_editor_preview_does_not_publish(
-    client, db, make_user, course, enrollment, evaluation_period
+    client, db, make_user, school_class, grille_ligne, enrollment, evaluation_period
 ):
     from app.models.grading import Grade
     from app.models.user import RoleEnum
 
     user, password = make_user(role=RoleEnum.DIRECTION)
     client.post("/auth/login", data={"email": user.email, "password": password})
-    prefix = f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}"
+    prefix = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
     response = client.get(prefix + "/report-template")
     assert response.status_code == 200
     assert b'title="Aper' in response.data
@@ -124,14 +124,14 @@ def test_report_editor_preview_does_not_publish(
 
 
 def test_preview_rejects_duplicate_columns(
-    client, make_user, course, enrollment, evaluation_period
+    client, make_user, school_class, grille_ligne, enrollment, evaluation_period
 ):
     from app.models.user import RoleEnum
 
     user, password = make_user(role=RoleEnum.DIRECTION)
     client.post("/auth/login", data={"email": user.email, "password": password})
     response = client.post(
-        f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}/report-preview",
+        f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}/report-preview",
         data={
             "locale": "fr",
             "orientation": "portrait",
@@ -145,10 +145,10 @@ def test_preview_rejects_duplicate_columns(
 
 
 def test_teacher_cannot_edit_or_preview_template(
-    client, make_user, course, enrollment, evaluation_period
+    client, make_user, school_class, grille_ligne, enrollment, evaluation_period
 ):
     user, password = make_user()
     client.post("/auth/login", data={"email": user.email, "password": password})
-    prefix = f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}"
+    prefix = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
     assert client.get(prefix + "/report-template").status_code == 403
     assert client.get(prefix + "/report-preview").status_code == 403

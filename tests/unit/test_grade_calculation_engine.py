@@ -8,6 +8,7 @@ from app.services.grade_calculation_engine import (
     PeriodContribution,
     PromotionDecision,
     compute_annual_total,
+    compute_group_subtotals,
     compute_period_total,
     decide_promotion,
     quantize_percentage,
@@ -16,9 +17,10 @@ from app.services.grade_calculation_engine import (
 )
 
 
-def cg(course_id, coefficient="1", max_score="20", score="10"):
+def cg(ligne_id, coefficient="1", max_score="20", score="10", groupe_id=1):
     return CourseGradeInput(
-        course_id=course_id,
+        ligne_id=ligne_id,
+        groupe_id=groupe_id,
         coefficient=Decimal(coefficient),
         max_score=Decimal(max_score),
         score=Decimal(score) if score is not None else None,
@@ -65,7 +67,7 @@ class TestComputePeriodTotal:
         assert result.weighted_points == Decimal("40")
         assert result.weighted_possible == Decimal("80")
         assert result.percentage == Decimal("50")
-        included = {b.course_id: b.included for b in result.course_breakdown}
+        included = {b.ligne_id: b.included for b in result.course_breakdown}
         assert included == {1: True, 2: False}
 
     def test_all_grades_missing_returns_none_percentage(self):
@@ -172,6 +174,68 @@ class TestDecidePromotion:
         p1 = compute_period_total(1, [])
         annual = compute_annual_total(1, [PeriodContribution(p1, Decimal("100"))])
         assert decide_promotion(annual, Decimal("50")) == PromotionDecision.UNDETERMINED
+
+
+class TestExclusionAndAppreciation:
+    def test_line_excluded_from_general_total_does_not_contribute(self):
+        grades = [
+            cg(1, coefficient="4", max_score="20", score="10"),  # 40/80, included
+            CourseGradeInput(
+                ligne_id=2, groupe_id=1, coefficient=Decimal("2"),
+                max_score=Decimal("20"), score=Decimal("20"), included=False,
+            ),
+        ]
+        result = compute_period_total(1, grades)
+        assert result.weighted_points == Decimal("40")
+        assert result.weighted_possible == Decimal("80")
+
+    def test_appreciation_line_never_contributes_numerically(self):
+        grades = [
+            cg(1, coefficient="4", max_score="20", score="10"),  # 40/80
+            CourseGradeInput(
+                ligne_id=2, groupe_id=1, coefficient=Decimal("2"),
+                max_score=None, score=None, appreciation="Bon travail",
+                is_numeric=False,
+            ),
+        ]
+        result = compute_period_total(1, grades)
+        assert result.weighted_points == Decimal("40")
+        assert result.weighted_possible == Decimal("80")
+
+    def test_appreciation_line_skips_numeric_validation(self):
+        validate_course_grade(
+            CourseGradeInput(
+                ligne_id=1, groupe_id=1, coefficient=Decimal("2"),
+                max_score=None, score=None, appreciation="Bien", is_numeric=False,
+            )
+        )
+
+
+class TestComputeGroupSubtotals:
+    def test_groups_roll_up_independently(self):
+        grades = [
+            cg(1, coefficient="4", max_score="20", score="20", groupe_id=1),  # 80/80
+            cg(2, coefficient="2", max_score="20", score="10", groupe_id=1),  # 20/40
+            cg(3, coefficient="1", max_score="10", score="5", groupe_id=2),  # 5/10
+        ]
+        result = compute_period_total(1, grades)
+        subtotals = {s.groupe_id: s for s in compute_group_subtotals(result.course_breakdown)}
+        assert subtotals[1].weighted_points == Decimal("100")
+        assert subtotals[1].weighted_possible == Decimal("120")
+        assert subtotals[2].weighted_points == Decimal("5")
+        assert subtotals[2].weighted_possible == Decimal("10")
+
+    def test_excluded_line_does_not_enter_its_group_subtotal(self):
+        grades = [
+            cg(1, coefficient="4", max_score="20", score="10", groupe_id=1),
+            CourseGradeInput(
+                ligne_id=2, groupe_id=1, coefficient=Decimal("2"),
+                max_score=Decimal("20"), score=Decimal("20"), included=False,
+            ),
+        ]
+        result = compute_period_total(1, grades)
+        subtotals = {s.groupe_id: s for s in compute_group_subtotals(result.course_breakdown)}
+        assert subtotals[1].weighted_possible == Decimal("80")
 
 
 class TestQuantizePercentage:

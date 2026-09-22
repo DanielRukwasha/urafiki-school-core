@@ -17,6 +17,13 @@ from decimal import Decimal
 from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass, Section
 from app.models.course import Course
+from app.models.grille import (
+    GrilleCours,
+    GrilleCoursLigne,
+    GrilleCoursLigneMaximum,
+    GroupeCours,
+    Niveau,
+)
 from app.models.institution import Institution
 from app.models.student import Enrollment, Student
 from app.models.user import RoleEnum, User
@@ -56,13 +63,15 @@ def seed() -> None:
     db.session.add(teacher)
 
     section = Section(ecole_id=ecole_id, name="Scientifique", code="SCI")
-    db.session.add(section)
+    niveau = Niveau(ecole_id=ecole_id, libelle="6eme", ordre_affichage=6)
+    db.session.add_all([section, niveau])
     db.session.flush()
 
     school_class = SchoolClass(
         ecole_id=ecole_id,
         academic_year_id=year.id,
         section_id=section.id,
+        niveau_id=niveau.id,
         name="6eme Scientifique A",
         level_order=6,
     )
@@ -80,15 +89,39 @@ def seed() -> None:
     )
     db.session.add(period)
 
-    course = Course(
+    course = Course(ecole_id=ecole_id, name="Mathematiques", code="MATH")
+    groupe = GroupeCours(ecole_id=ecole_id, libelle="Sciences", ordre_affichage=1)
+    db.session.add_all([course, groupe])
+    db.session.flush()
+
+    grille = GrilleCours(
         ecole_id=ecole_id,
-        school_class_id=school_class.id,
-        name="Mathematiques",
-        code="MATH",
-        coefficient=Decimal("4"),
-        max_score=Decimal("20"),
+        section_id=section.id,
+        niveau_id=niveau.id,
+        academic_year_id=year.id,
     )
-    db.session.add(course)
+    db.session.add(grille)
+    db.session.flush()
+
+    ligne = GrilleCoursLigne(
+        ecole_id=ecole_id,
+        grille_cours_id=grille.id,
+        cours_id=course.id,
+        groupe_cours_id=groupe.id,
+        ordre_affichage=1,
+        ponderation=Decimal("4"),
+    )
+    db.session.add(ligne)
+    db.session.flush()
+
+    db.session.add(
+        GrilleCoursLigneMaximum(
+            ecole_id=ecole_id,
+            grille_cours_ligne_id=ligne.id,
+            periode_id=period.id,
+            maximum=Decimal("20"),
+        )
+    )
 
     student = Student(
         ecole_id=ecole_id, matricule="IMC-0001", first_name="Alice", last_name="Mwamba"

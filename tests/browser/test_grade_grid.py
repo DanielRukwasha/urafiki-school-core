@@ -8,6 +8,7 @@ import pytest
 from werkzeug.serving import make_server
 
 from app.models.course import Course
+from app.models.grille import GrilleCoursLigne, GrilleCoursLigneMaximum
 from app.models.institution import Institution
 from app.models.student import Enrollment, Student
 from app.models.tenant_config import TenantConfig
@@ -56,15 +57,28 @@ def _tenant_request_context(app, tenant_a):
 
 
 @pytest.fixture()
-def browser_portal(app, db, make_user, course, enrollment, evaluation_period):
+def browser_portal(
+    app, db, make_user, school_class, grille_cours, groupe_cours, grille_ligne,
+    enrollment, evaluation_period,
+):
     user, password = make_user(role=RoleEnum.DIRECTION)
+    second_course = Course(name="Sciences", code="SCI")
+    db.session.add(second_course)
+    db.session.flush()
+    second_ligne = GrilleCoursLigne(
+        grille_cours_id=grille_cours.id,
+        cours_id=second_course.id,
+        groupe_cours_id=groupe_cours.id,
+        ordre_affichage=2,
+        ponderation=2,
+    )
+    db.session.add(second_ligne)
+    db.session.flush()
     db.session.add(
-        Course(
-            school_class_id=course.school_class_id,
-            name="Sciences",
-            code="SCI",
-            coefficient=2,
-            max_score=20,
+        GrilleCoursLigneMaximum(
+            grille_cours_ligne_id=second_ligne.id,
+            periode_id=evaluation_period.id,
+            maximum=20,
         )
     )
     pupil = Student(matricule="TEST-002", first_name="Daniel", last_name="Mukendi")
@@ -73,7 +87,7 @@ def browser_portal(app, db, make_user, course, enrollment, evaluation_period):
     db.session.add(
         Enrollment(
             student_id=pupil.id,
-            school_class_id=course.school_class_id,
+            school_class_id=school_class.id,
             academic_year_id=enrollment.academic_year_id,
             enrollment_date=datetime.date(2025, 9, 1),
         )
@@ -97,7 +111,7 @@ def browser_portal(app, db, make_user, course, enrollment, evaluation_period):
         page.locator("#password").fill(password)
         page.locator('input[type="submit"]').click()
         page.wait_for_url("**/portal/")
-        path = f"/portal/classes/{course.school_class_id}/periods/{evaluation_period.id}"
+        path = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
         page.goto(base + path + "/grid")
         page.wait_for_function(
             "document.querySelector('.grade-input') && !document.querySelector('.grade-input').disabled"
