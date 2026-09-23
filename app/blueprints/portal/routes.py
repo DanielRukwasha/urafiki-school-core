@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, abort, g, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -739,6 +739,7 @@ def print_report(class_id, period_id, kind):
         preview=False,
         ui_theme=theme,
         report_layout=layout,
+        report_document=getattr(g, "report_document", None),
         report_logo_url=inline_report_logo(theme.logo_url) if pdf else theme.logo_url,
         **result_context(class_id, period_id),
     )
@@ -820,6 +821,7 @@ def report_preview(class_id, period_id):
         preview=True,
         pdf=False,
         report_layout=layout,
+        report_document=getattr(g, "report_document", None),
         ui_theme=theme,
         report_logo_url=theme.logo_url,
         **ctx,

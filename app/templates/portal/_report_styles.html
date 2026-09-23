@@ -23,6 +23,16 @@ thead { display: table-header-group; }
 th, td { border-bottom: .5pt solid var(--line); padding: 3mm 2mm; text-align: left; overflow-wrap: anywhere; }
 th { background: var(--surface-subtle); font-size: 9pt; }
 tr { break-inside: avoid; }
+.group-heading, .subtotal, .synthesis { break-inside: avoid; }
+.group-heading th { border-top: 1pt solid var(--primary); }
+.subtotal th, .subtotal td { border-top: .75pt solid var(--line); font-weight: 700; }
+.not-counted, .not-counted-row { color: var(--muted); }
+.not-counted-row th::after { content: " · " attr(data-exclusion); }
+.maximum { color: var(--muted); font-size: .8em; }
+.report-density-compact { font-size: calc({{ report_layout.font_size }}pt - 1pt); }
+.report-density-dense { font-size: calc({{ report_layout.font_size }}pt - 2pt); }
+.report-density-compact th, .report-density-compact td, .report-density-dense th, .report-density-dense td { padding-top: 1.5mm; padding-bottom: 1.5mm; }
+.descriptive-report { break-after: avoid; }
 .numeric { text-align: right; }
 .summary { border-top: 1pt solid var(--primary); padding: 4mm 0; break-inside: avoid; }
 .signatures { margin-top: 12mm; display: table; width: 100%; table-layout: fixed; break-inside: avoid; }
