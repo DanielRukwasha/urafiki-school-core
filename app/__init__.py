@@ -15,6 +15,10 @@ def create_app(config_name: str | None = None, config_overrides: dict | None = N
     app.config.update(config_overrides or {})
 
     _register_extensions(app)
+
+    from app.i18n import init_i18n
+
+    init_i18n(app)
     _register_blueprints(app)
     _register_error_handlers(app)
 

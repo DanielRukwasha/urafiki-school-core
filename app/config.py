@@ -33,6 +33,14 @@ class Config:
 
     WTF_CSRF_ENABLED = True
 
+    # Internationalization (app/i18n.py). French is the reference language
+    # and the msgid language; "sw" is declared so a tenant can switch to it
+    # as soon as its catalog exists — no code change required.
+    BABEL_DEFAULT_LOCALE = "fr"
+    BABEL_DEFAULT_TIMEZONE = "UTC"
+    BABEL_TRANSLATION_DIRECTORIES = "translations"
+    LANGUES_DISPONIBLES = ("fr", "sw")
+
     TESTING = False
     DEBUG = False
 
