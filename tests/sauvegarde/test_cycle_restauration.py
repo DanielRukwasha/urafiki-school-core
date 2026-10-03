@@ -8,12 +8,14 @@ import uuid
 import psycopg
 import pytest
 
+# Module alias, not `from ... import tester_restauration`: pytest would
+# collect a module-level name starting with "test" as a test.
+from ops.sauvegarde import urafiki_sauvegarde as outil
 from ops.sauvegarde.urafiki_sauvegarde import (
     SauvegardeError,
     StockageFichier,
     restaurer,
     sauvegarder,
-    tester_restauration,
     url_libpq,
 )
 
@@ -54,7 +56,7 @@ def test_backup_is_encrypted_and_restores_identically(tmp_path, phrase, base_vid
 def test_monthly_restore_test_uses_a_throwaway_database(tmp_path, phrase):
     stockage = StockageFichier(tmp_path / "hors-site")
     sauvegarder(SOURCE, stockage)
-    assert tester_restauration(SOURCE, stockage)["tables"] > 0
+    assert outil.tester_restauration(SOURCE, stockage)["tables"] > 0
 
 
 def test_tampered_backup_is_refused(tmp_path, phrase, base_vide):
