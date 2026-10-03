@@ -9,6 +9,7 @@ from app.models.academic import (  # noqa: F401,E501
 from app.models.course import Course  # noqa: F401
 from app.models.deliberation import DeliberationPolicy  # noqa: F401
 from app.models.deliberation_workflow import (  # noqa: F401
+    BulletinVersion,
     DeliberationAction,
     DeliberationAuditLog,
     DeliberationOverride,
@@ -25,6 +26,7 @@ from app.models.grille import (  # noqa: F401
     Niveau,
 )
 from app.models.institution import Institution  # noqa: F401
+from app.models.journal import SensitiveReadKind, SensitiveReadLog  # noqa: F401
 from app.models.platform import (  # noqa: F401
     CalculationStrategy,
     SuperAdmin,
@@ -50,12 +52,15 @@ __all__ = [
     "SchoolClass",
     "Course",
     "DeliberationPolicy",
+    "BulletinVersion",
     "DeliberationAction",
     "DeliberationAuditLog",
     "DeliberationOverride",
     "ManualDecision",
     "PeriodPublication",
     "PublicationStatus",
+    "SensitiveReadKind",
+    "SensitiveReadLog",
     "Grade",
     "GradeAuditLog",
     "GradeAuditAction",

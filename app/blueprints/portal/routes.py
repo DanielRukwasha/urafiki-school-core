@@ -19,6 +19,7 @@ from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass
 from app.models.grading import Grade
 from app.models.grille import GrilleCoursLigne
+from app.models.journal import SensitiveReadKind
 from app.models.student import Enrollment, EnrollmentStatus, Student
 from app.models.teaching import TeacherAssignment
 from app.models.user import RoleEnum, User
@@ -46,6 +47,7 @@ from app.services.grille_service import (
     maximum_pour_periode,
     resoudre_grille,
 )
+from app.services.journal_lectures import journaliser_lecture
 from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidation
 
 bp = Blueprint("portal", __name__, url_prefix="/portal")
@@ -442,6 +444,16 @@ def sync(class_id, period_id):
     return response
 
 
+def _bulletin_read_kind():
+    if request.args.get("format") == "pdf":
+        return SensitiveReadKind.EXPORT_DONNEES
+    return SensitiveReadKind.BULLETIN_CONSULTATION
+
+
+# Every view that shows bulletin results (results, print, PDF export,
+# report editor/preview) goes through this one function, so it is journaled
+# here once rather than in each route — invariant 10.
+@journaliser_lecture(_bulletin_read_kind)
 def result_context(class_id, period_id):
     ctx = context(class_id, period_id)
     ctx["grades"] = {key: grade for key, grade in ctx["grades"].items() if not grade.is_archived}
@@ -614,6 +626,28 @@ def transition(class_id, period_id, action):
         )
     except TransitionError as error:
         return render_template("portal/preview_error.html", error=str(error)), 409
+    return redirect(url_for("portal.consolidation", class_id=class_id, period_id=period_id))
+
+
+@bp.post("/classes/<int:class_id>/periods/<int:period_id>/consolidation/correction")
+@roles_required(RoleEnum.DIRECTION)
+def publish_correction(class_id, period_id):
+    """Publish a corrected version of an already-published bulletin, with
+    its mandatory motif (invariant 9) — see
+    deliberation_service.publier_correction."""
+    from app.services.deliberation_service import TransitionError, publier_correction
+
+    db.get_or_404(SchoolClass, class_id)
+    db.get_or_404(EvaluationPeriod, period_id)
+    try:
+        publier_correction(
+            school_class_id=class_id,
+            period_id=period_id,
+            motif=request.form.get("motif", ""),
+            user=current_user,
+        )
+    except TransitionError as error:
+        return render_template("portal/preview_error.html", error=str(error)), 422
     return redirect(url_for("portal.consolidation", class_id=class_id, period_id=period_id))
 
 
