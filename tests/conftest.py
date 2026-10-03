@@ -1,4 +1,5 @@
 import datetime
+import os
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -61,6 +62,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.browser)
         if path.name in _PDF_TEST_FILES:
             item.add_marker(pytest.mark.pdf)
+        if "sauvegarde" in path.parts:
+            item.add_marker(pytest.mark.sauvegarde)
 
 
 def _missing_dependencies(tiers: set[str]) -> list[str]:
@@ -88,6 +91,18 @@ def _missing_dependencies(tiers: set[str]) -> list[str]:
                 __import__(module)
             except (ImportError, OSError) as error:
                 missing.append(f"pdf : module {module} indisponible ({error}). Installer : {hint}")
+    if "sauvegarde" in tiers:
+        import shutil
+
+        for tool in ("pg_dump", "pg_restore", "gpg"):
+            if shutil.which(tool) is None:
+                missing.append(f"sauvegarde : outil {tool} absent du PATH")
+        url = os.environ.get("SAUVEGARDE_DATABASE_URL", "")
+        if not url.startswith("postgresql"):
+            missing.append(
+                "sauvegarde : SAUVEGARDE_DATABASE_URL doit désigner une base PostgreSQL "
+                "migrée (voir RESTAURATION.md)"
+            )
     return missing
 
 
@@ -95,7 +110,7 @@ def pytest_collection_finish(session):
     tiers = {
         marker
         for item in session.items
-        for marker in ("browser", "pdf")
+        for marker in ("browser", "pdf", "sauvegarde")
         if item.get_closest_marker(marker)
     }
     if not tiers:
