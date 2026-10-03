@@ -20,13 +20,17 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 7 | Frontend | feat/frontend-teacher-scope-docs | livré | 2026-09-18 | #49 | Contrat frontend du titulariat par classe |
 | 8 | Backend | feat/backend-grilles-et-perimetres | fusionné | 2026-09-22 | #50 | Grilles de cours par niveau, permissions contextuelles |
 | 9 | Frontend | feat/frontend-rendu-et-navigation | livré | 2026-09-23 | #51 | Rendu des bulletins décrit par le serveur |
-| 10 | Backend | feat/backend-conformite-socle | livré | 2026-10-03 | voir PR | Mise en conformité du socle avec les invariants |
+| 10 | Backend | feat/backend-conformite-socle | livré | 2026-10-03 | #55 | Mise en conformité du socle avec les invariants (jalon « Conformité du socle ») |
 
 ## Notes
 
-- **Sprint 5** : la branche `feat/frontend-bulletins-deliberation` porte
-  deux commits postérieurs à la fusion de #44 et n'a aucune PR ouverte. Leur
-  sort est à arbitrer (constat de la phase 0, 2026-10-03).
+- **Sprint 5** : la branche `feat/frontend-bulletins-deliberation` portait
+  deux commits postérieurs à la fusion de #44 (`b4014d1`, `73ac6fb`), jamais
+  fusionnés. La branche a été supprimée de GitHub après la phase 0 ; ces
+  commits ne sont plus dans aucune branche distante. Ils sont conservés dans
+  les clones locaux et dans un bundle git
+  (`urafiki-sauvegarde-feat-frontend-bulletins-deliberation.bundle`). Leur
+  sort est à arbitrer.
 - **Sprint 10** : bloqué partiellement par l'approvisionnement du stockage
   objet hors site (voir RESTAURATION.md). Fusion conditionnée à la revue de
   l'agent Frontend ; la protection de `main` exige désormais une approbation
