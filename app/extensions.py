@@ -6,7 +6,10 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
 
-db = SQLAlchemy()
+from app.security.tenant_session import TenantScopedSession
+
+# Tenant-aware session: see app/security/tenant_session.py.
+db = SQLAlchemy(session_options={"class_": TenantScopedSession})
 migrate = Migrate()
 login_manager = LoginManager()
 bcrypt = Bcrypt()

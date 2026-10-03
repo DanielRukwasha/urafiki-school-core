@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass
 from app.models.grading import Grade
+from app.models.grille import GrilleCoursLigne
 from app.models.student import Enrollment, EnrollmentStatus, Student
 from app.models.teaching import TeacherAssignment
 from app.models.user import RoleEnum, User
@@ -211,6 +212,21 @@ def dashboard():
     return render_template("portal/dashboard.html", classes=classes, courses=courses)
 
 
+def _submitted_or_404(model, field):
+    """The row a form field designates, or None when the field was left
+    empty (a validation error the form reports). An identifier that IS
+    submitted but resolves to nothing in this tenant — another tenant's
+    id, or a forged one — is a 404, never a form error that would confirm
+    or deny its existence (invariant 6)."""
+    raw = request.form.get(field, "").strip()
+    if not raw:
+        return None
+    try:
+        return db.get_or_404(model, int(raw))
+    except ValueError:
+        abort(404)
+
+
 @bp.route("/assignments", methods=["GET", "POST"])
 @roles_required(RoleEnum.DIRECTION)
 def assignments():
@@ -225,8 +241,8 @@ def assignments():
             continue
 
     if request.method == "POST" and request.form.get("kind") == "titulaire":
-        klass = db.session.get(SchoolClass, request.form.get("class_id", type=int))
-        teacher = db.session.get(User, request.form.get("titulaire_teacher_id", type=int))
+        klass = _submitted_or_404(SchoolClass, "class_id")
+        teacher = _submitted_or_404(User, "titulaire_teacher_id")
         motif = request.form.get("motif", "").strip()
         if (
             not klass
@@ -242,9 +258,11 @@ def assignments():
             affecter_titulaire(klass, teacher, motif=motif, actor=current_user)
             return redirect(url_for("portal.assignments"))
     elif request.method == "POST":
-        teacher = db.session.get(User, request.form.get("teacher_id", type=int))
-        klass = db.session.get(SchoolClass, request.form.get("class_id", type=int))
+        teacher = _submitted_or_404(User, "teacher_id")
+        klass = _submitted_or_404(SchoolClass, "class_id")
         ligne_id = request.form.get("grille_cours_ligne_id", type=int)
+        if ligne_id is not None:
+            _submitted_or_404(GrilleCoursLigne, "grille_cours_ligne_id")
         valid_pair = klass is not None and ligne_id in {
             c.id for k, c in line_choices if k.id == (klass.id if klass else None)
         }
