@@ -22,6 +22,8 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 9 | Frontend | feat/frontend-rendu-et-navigation | livré | 2026-09-23 | #51 | Rendu des bulletins décrit par le serveur |
 | 10 | Backend | feat/backend-conformite-socle | livré | 2026-10-03 | #55 | Mise en conformité du socle avec les invariants (jalon « Conformité du socle ») |
 
+| 11 | Frontend | feat/frontend-conformite-interface | en cours | 2026-10-03 | #56 | Traductions, accessibilite et corrections motivees |
+
 ## Notes
 
 - **Sprint 5** : la branche `feat/frontend-bulletins-deliberation` portait
@@ -30,7 +32,7 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
   commits ne sont plus dans aucune branche distante. Ils sont conservés dans
   les clones locaux et dans un bundle git
   (`urafiki-sauvegarde-feat-frontend-bulletins-deliberation.bundle`). Leur
-  sort est à arbitrer.
+  abandon est documente dans issue #52 (adaptateurs obsoletes).
 - **Sprint 10** : bloqué partiellement par l'approvisionnement du stockage
   objet hors site (voir RESTAURATION.md). Fusion conditionnée à la revue de
   l'agent Frontend ; la protection de `main` exige désormais une approbation

@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"allowScriptTags":false,"timeout":15000}'>
 <title>{% block title %}Portail scolaire{% endblock %} · {{ ui_theme.name }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-5.3.8.min.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
 {% from "components/theme.html" import theme_tokens, identity %}
 {{ theme_tokens(ui_theme) }}

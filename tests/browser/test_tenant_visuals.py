@@ -1,8 +1,11 @@
+import json
+import re
 import threading
 from pathlib import Path
 
 from werkzeug.serving import make_server
 
+from app.ui.theming import contrast
 from tests import presentation_support
 from tests.presentation_support import EXAMPLES  # noqa: F401
 
@@ -28,6 +31,7 @@ def test_two_fictitious_presentations_and_reports(branded_app):
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             colors = {}
+            measured = {}
             for slug, sample in EXAMPLES.items():
                 origin = f"http://{slug}.localhost:{server.server_port}"
                 page.goto(origin + "/auth/login")
@@ -44,6 +48,24 @@ def test_two_fictitious_presentations_and_reports(branded_app):
                 colors[slug] = page.locator('input[type="submit"]').evaluate(
                     "(e) => getComputedStyle(e).backgroundColor"
                 )
+                measured[slug] = []
+                for selector in ('input[type="submit"]', '#login-title', '.muted'):
+                    pair = page.locator(selector).first.evaluate("""e => {
+                        const foreground = getComputedStyle(e).color;
+                        let node = e;
+                        let background = getComputedStyle(node).backgroundColor;
+                        while (background === 'rgba(0, 0, 0, 0)' && node.parentElement) {
+                            node = node.parentElement;
+                            background = getComputedStyle(node).backgroundColor;
+                        }
+                        return {foreground, background};
+                    }""")
+                    def hex_color(value):
+                        channels = [int(channel) for channel in re.findall(r"\d+", value)[:3]]
+                        return '#' + ''.join(f'{channel:02x}' for channel in channels)
+                    ratio = contrast(hex_color(pair['foreground']), hex_color(pair['background']))
+                    assert ratio >= 4.5, (slug, selector, pair, ratio)
+                    measured[slug].append({'selector': selector, **pair, 'ratio': ratio})
                 page.screenshot(path=str(output / f"{slug}-login-desktop.png"), full_page=True)
                 page.set_viewport_size({"width": 390, "height": 844})
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -57,6 +79,7 @@ def test_two_fictitious_presentations_and_reports(branded_app):
                 assert sample["period"] in page.content()
                 assert other["period"] not in page.content()
                 page.screenshot(path=str(output / f"{slug}-report-preview.png"), full_page=True)
+            (output / "browser-contrast.json").write_text(json.dumps(measured, indent=2))
             assert colors["rivage"] != colors["horizon"]
             assert not errors
             browser.close()

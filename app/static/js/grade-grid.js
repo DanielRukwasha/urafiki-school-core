@@ -7,6 +7,7 @@
   const summary = document.querySelector("#sync-summary");
   const warning = document.querySelector("#storage-warning");
   const inputs = new Map([...grid.querySelectorAll(".grade-input")].map(el => [el.dataset.key, el]));
+  if (!inputs.size) return;
   const pending = new Map();
   let batch = null, timer, paused = false, storageOK = true;
   const prefix = ["urafiki", "v1", grid.dataset.user, grid.dataset.class, grid.dataset.period].join(":") + ":";
