@@ -16,6 +16,13 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Default run = CI's `test` job. The browser/pdf tiers need system
+# dependencies and run with: pytest -m "browser or pdf" (see README.md).
+addopts = "-m 'not browser and not pdf'"
+markers = [
+    "browser: real-browser tests (Playwright + Chromium); CI job browser-pdf",
+    "pdf: native PDF rendering tests (WeasyPrint + Pango); CI job browser-pdf",
+]
 
 [tool.coverage.run]
 source = ["app"]

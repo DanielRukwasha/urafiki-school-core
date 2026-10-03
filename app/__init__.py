@@ -6,9 +6,13 @@ from app.config import get_config
 from app.extensions import bcrypt, csrf, db, login_manager, migrate
 
 
-def create_app(config_name: str | None = None) -> Flask:
+def create_app(config_name: str | None = None, config_overrides: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(get_config(config_name))
+    # Applied before any extension is initialized, so overrides such as
+    # SQLALCHEMY_DATABASE_URI take effect (used by the multi-threaded
+    # browser tests, which need a file-backed SQLite database).
+    app.config.update(config_overrides or {})
 
     _register_extensions(app)
     _register_blueprints(app)

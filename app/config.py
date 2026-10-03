@@ -50,20 +50,17 @@ class TestConfig(Config):
     WTF_CSRF_ENABLED = False
 
     if SQLALCHEMY_DATABASE_URI == "sqlite:///:memory:":
-        # The default in-memory pool (SQLiteImpl's SingletonThreadPool)
-        # hands each thread its own PRIVATE :memory: database, not a
-        # shared one — invisible in ordinary single-threaded tests, but
-        # the browser tests run a real Flask dev server on a background
-        # thread (werkzeug threaded=True) that the main test thread also
-        # queries directly. Different threads then silently see different,
-        # disconnected databases, and concurrent access to whichever
-        # connection SQLAlchemy does reuse corrupts cursor state under
-        # SQLite's stock (not thread-safe) driver — surfacing as random
-        # IntegrityErrors, "bad parameter" InterfaceErrors, or outright
-        # crashes, never the same failure twice. StaticPool + a shared,
-        # not-thread-affine connection (check_same_thread=False, safe here
-        # because SQLAlchemy's pool already serializes access to it) fixes
-        # this for good instead of leaving it as a flaky trap.
+        # An in-memory SQLite database only exists inside the connection
+        # that created it, so every checkout must reuse that one
+        # connection (StaticPool). That connection is NOT serialized
+        # between threads: SQLAlchemy hands the very same DB-API
+        # connection to every thread that asks, and SQLite's stock
+        # driver corrupts its cursor state under concurrent use
+        # ("bad parameter or other API misuse", timeouts, or a hard
+        # interpreter crash on Windows). This configuration is therefore
+        # valid for single-threaded tests only. Tests that run a live,
+        # multi-threaded server (tests/browser) get a file-backed
+        # database instead — see the `app` fixture in tests/conftest.py.
         from sqlalchemy.pool import StaticPool
 
         SQLALCHEMY_ENGINE_OPTIONS = {
