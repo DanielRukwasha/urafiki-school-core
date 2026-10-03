@@ -55,7 +55,7 @@ def second_grille_ligne(db, tenant_a, grille_cours, groupe_cours, evaluation_per
 
 @pytest.fixture()
 def second_student_enrollment(db, tenant_a, school_class, academic_year):
-    student = Student(ecole_id=tenant_a.id, matricule="IMC-0002", first_name="Bob", last_name="Kalala")
+    student = Student(ecole_id=tenant_a.id, matricule="EFA-0002", first_name="Bob", last_name="Kalala")
     db.session.add(student)
     db.session.flush()
     enrollment = Enrollment(
