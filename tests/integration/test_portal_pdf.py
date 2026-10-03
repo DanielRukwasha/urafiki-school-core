@@ -2,7 +2,6 @@
 
 import datetime
 import io
-import os
 from pathlib import Path
 
 import pytest
@@ -25,13 +24,11 @@ def _tenant_request_context(app, tenant_a):
 
 @pytest.fixture()
 def pdf_runtime():
-    try:
-        import pypdf
-        import weasyprint  # noqa: F401
-    except (ImportError, OSError) as error:
-        if os.environ.get("REQUIRE_PDF"):
-            pytest.fail(str(error))
-        pytest.skip("Install requirements-pdf.txt, pypdf and native Pango libraries")
+    # Availability is guaranteed by the `pdf` tier check in tests/conftest.py,
+    # which fails the whole run explicitly when a dependency is missing.
+    import pypdf
+    import weasyprint  # noqa: F401
+
     return pypdf
 
 
@@ -73,7 +70,7 @@ def test_a4_reports_paginate(
         assert abs(float(page.mediabox.height) - 841.89) < 1
         assert "Page " in page.extract_text()
     text = "".join(page.extract_text() for page in reader.pages)
-    assert "IMC-0001" in text
+    assert "EFA-0001" in text
     assert f"PDF-{count - 1:04}" in text
     assert "Télécharger" not in text
     output = Path("tmp/portal-review")

@@ -34,6 +34,7 @@ from app.models.deliberation import DeliberationPolicy
 from app.models.deliberation_workflow import (
     NEXT_STATUS,
     TRANSITION_ACTION_FOR_STATUS,
+    BulletinVersion,
     DeliberationAction,
     DeliberationAuditLog,
     DeliberationOverride,
@@ -436,6 +437,18 @@ def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPubli
     elif expected_next == PublicationStatus.PUBLISHED:
         publication.published_at = now
         publication.version += 1
+        # The state machine reaches PUBLISHED only once (there is no
+        # unpublish), so this is always version 1; corrections go through
+        # `publier_correction`, which demands a motif.
+        db.session.add(
+            BulletinVersion(
+                ecole_id=publication.ecole_id,
+                publication_id=publication.id,
+                numero=publication.version,
+                auteur_id=user.id,
+                publie_le=now,
+            )
+        )
 
     db.session.add(
         DeliberationAuditLog(
@@ -449,6 +462,66 @@ def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPubli
     )
     db.session.commit()
     return publication
+
+
+MOTIF_CORRECTION_MIN = 10
+
+
+def _motif_requis(motif: str | None) -> str:
+    if motif is None or len(motif.strip()) < MOTIF_CORRECTION_MIN:
+        raise TransitionError(
+            "Une correction de bulletin publié exige un motif d'au moins "
+            f"{MOTIF_CORRECTION_MIN} caractères."
+        )
+    return motif.strip()
+
+
+def _derniere_version_id(publication: PeriodPublication) -> int | None:
+    latest = (
+        BulletinVersion.query.filter_by(publication_id=publication.id)
+        .order_by(BulletinVersion.numero.desc())
+        .first()
+    )
+    return latest.id if latest else None
+
+
+def publier_correction(*, school_class_id, period_id, motif, user) -> BulletinVersion:
+    """Publish a corrected version of an already-published bulletin
+    (invariant 9). The published versions are never touched: this adds
+    version n+1 recording the mandatory motif, its author, the UTC
+    timestamp and the version it corrects. Refused if nothing is published
+    yet — a first publication goes through `apply_transition("publish")`.
+    Actor authorization (DIRECTION only) is the route layer's job."""
+    motif = _motif_requis(motif)
+    publication = _publication(school_class_id, period_id)
+    if publication is None or not publication.published:
+        raise TransitionError("Aucune version publiée à corriger pour cette classe et période.")
+    corrigee_id = _derniere_version_id(publication)
+    now = utcnow()
+    publication.version += 1
+    publication.published_at = now
+    version = BulletinVersion(
+        ecole_id=publication.ecole_id,
+        publication_id=publication.id,
+        numero=publication.version,
+        motif=motif,
+        auteur_id=user.id,
+        publie_le=now,
+        corrige_version_id=corrigee_id,
+    )
+    db.session.add(version)
+    db.session.add(
+        DeliberationAuditLog(
+            action=DeliberationAction.PUBLISH,
+            period_id=period_id,
+            school_class_id=school_class_id,
+            old_value=f"version {publication.version - 1}",
+            new_value=f"version {publication.version} (correction) : {motif}",
+            user_id=user.id,
+        )
+    )
+    db.session.commit()
+    return version
 
 
 GRADE_ACTION_LABELS = {"CREATE": "Création", "UPDATE": "Modification", "DELETE": "Suppression"}

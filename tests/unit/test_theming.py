@@ -58,9 +58,10 @@ def test_same_origin_asset_is_supported():
 
 def test_no_school_identity_or_literal_palette_in_templates_and_styles():
     examples = json.loads(FIXTURES.read_text(encoding="utf-8-sig"))
-    names = [entry["branding"]["display_name"] for entry in examples.values()] + [
-        "Institut Mont Carmel"
-    ]
+    # Real institution names are checked repo-wide by
+    # tests/unit/test_aucun_nom_reel.py; this test covers the fictitious
+    # presentation fixtures' own names.
+    names = [entry["branding"]["display_name"] for entry in examples.values()]
     root = Path(__file__).parents[2]
     for folder in ("app/templates", "app/static/css", "app/static/js"):
         for path in (root / folder).rglob("*"):
