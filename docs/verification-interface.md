@@ -4,7 +4,7 @@ Branche : `feat/frontend-conformite-interface`. Issue #53, jalon Conformite du s
 
 ## Environnement et reproduction de la référence
 
-Référence avant modifications : `66af5d1faf95afa43c5b9cb41d28477ab905ee62`. Les traces complètes et conclusions sont publiées dans #40. Deux environnements Python 3.11.16 séparés :
+Référence avant modifications : `66af5d1faf95afa43c5b9cb41d28477ab905ee62`. Les traces complètes et conclusions sont publiées dans #40. Ce premier bloc concerne un checkout du hash de référence ci-dessus. Pour le sprint courant, utiliser les commandes et groupes de tests de la section Publication. Deux environnements Python 3.11.16 séparés :
 
 ```sh
 python3.11 -m venv .venv-core
@@ -38,7 +38,7 @@ Audit de masquage : `.sr-only` sert aux lecteurs d’écran ; `.brand-sub`/`.nav
 
 ```sh
 .venv-core/bin/pytest tests/unit/test_theming.py tests/unit/test_interface_invariants.py -q
-.venv-browser/bin/pytest tests/browser/test_tenant_visuals.py -q
+.venv-browser/bin/pytest -m browser tests/browser/test_tenant_visuals.py -q
 ```
 
 Fixtures : Rivage (primaire jaune #ffff00 volontairement impropre, accent magenta) et Horizon (bleu/vert). Les garde-fous corrigent le jaune ; chaque paire affichée respecte 4.5:1 pour le texte et 3:1 pour contours/focus. Ratios non arrondis pour décider du succès. Preuve JSON : `tmp/portal-review/contrast-ratios.json` ; captures des deux tenants dans le même répertoire.
@@ -49,10 +49,10 @@ Bootstrap CSS 5.3.8 est local, avec licence et contrôle SHA-384 officiel ; `por
 
 ## PDF WeasyPrint réels
 
-`REQUIRE_PDF=1` transforme une dépendance native absente en échec, jamais en test ignoré. Les tests vérifient la réponse `application/pdf`, les dimensions A4, pagination, matricules, langue, branding, logo, absence de l’identité de l’autre tenant et de liens d’édition.
+Sur le sprint courant, sélectionner explicitement le groupe `pdf` : le contrôle des dépendances natives échoue si une dépendance manque, sans test ignoré. Les tests vérifient la réponse `application/pdf`, les dimensions A4, pagination, matricules, langue, branding, logo, absence de l’identité de l’autre tenant et de liens d’édition.
 
 ```sh
-REQUIRE_PDF=1 .venv-browser/bin/pytest tests/integration/test_portal_pdf.py tests/integration/test_report_presentation_pdf.py -q
+.venv-browser/bin/pytest -m pdf tests/integration/test_portal_pdf.py tests/integration/test_report_presentation_pdf.py -q
 pdftoppm -f 1 -singlefile -scale-to 1600 -png tmp/portal-review/rivage-configured.pdf tmp/portal-review/rivage-pdf-page1
 pdftoppm -f 1 -singlefile -scale-to 1600 -png tmp/portal-review/horizon-configured.pdf tmp/portal-review/horizon-pdf-page1
 ```
@@ -62,7 +62,7 @@ Ouvrir ces PNG et les dernières pages : pas de texte tronqué, de chevauchement
 ## Coupure réseau
 
 ```sh
-.venv-browser/bin/pytest tests/browser/test_grade_grid.py::test_offline_draft_survives_reload_and_reconnect -q
+.venv-browser/bin/pytest -m browser tests/browser/test_grade_grid.py::test_offline_draft_survives_reload_and_reconnect -q
 ```
 
 Le scénario réel Playwright : ouvrir la grille, couper le réseau, saisir 16, vérifier le libellé et localStorage, rétablir le réseau en bloquant /sync, recharger, retrouver 16, lever le blocage, provoquer le retour online, vérifier la confirmation serveur sans cliquer Réessayer, recharger et lire 16.00 depuis le serveur. Captures `network-offline.png` et `network-recovered.png`. Tester aussi erreur CSRF, concurrence de deux onglets, modification pendant une requête et stockage local indisponible (suite test_grade_grid.py).
