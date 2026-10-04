@@ -49,10 +49,10 @@
             <td class="{{ 'numeric' if column not in ['course', 'code'] else '' }}">
             {% if column == 'course' %}{{ course.name }}
             {% elif column == 'code' %}{{ course.code }}
-            {% elif column == 'coefficient' %}{{ course.coefficient }}
-            {% elif column == 'max_score' %}{{ course.max_score }}
-            {% elif column == 'score' %}{{ grade.score if grade else '—' }}
-            {% elif column == 'weighted' %}{{ '%.2f'|format(grade.score * course.coefficient) if grade else '—' }}
+            {% elif column == 'coefficient' %}{{ course.coefficient|interface_decimal }}
+            {% elif column == 'max_score' %}{{ course.max_score|interface_decimal }}
+            {% elif column == 'score' %}{{ grade.score|interface_decimal if grade else '—' }}
+            {% elif column == 'weighted' %}{% if grade %}{% set breakdown = row.total.course_breakdown|selectattr('ligne_id', 'equalto', course.id)|first %}{{ breakdown.weighted_points|interface_decimal }}{% else %}—{% endif %}
             {% endif %}
             </td>
           {% endfor %}</tr>
@@ -60,8 +60,8 @@
         </tbody>
       </table>
       <div class="summary">
-        <p><strong>{{ labels.total }} : {{ '%.2f'|format(row.total.weighted_points) }} / {{ '%.2f'|format(row.total.weighted_possible) }}</strong></p>
-        <p>{{ labels.result }} : {{ (row.percentage ~ ' %') if row.percentage is not none else labels.not_evaluated }} · {{ labels.rank }} : {{ ranks.get(row.enrollment.id, '—') }}</p>
+        <p><strong>{{ labels.total }} : {{ row.total.weighted_points|interface_decimal }} / {{ row.total.weighted_possible|interface_decimal }}</strong></p>
+        <p>{{ labels.result }} : {{ (_('%(value)s %%', value=row.percentage|interface_decimal)) if row.percentage is not none else labels.not_evaluated }} · {{ labels.rank }} : {{ ranks.get(row.enrollment.id, '—') }}</p>
       </div>
       <p class="note">{{ labels.missing }} {{ labels.period_note }}</p>
       {{ footer() }}
@@ -77,7 +77,7 @@
           {% elif column == 'student' %}{{ row.enrollment.student.full_name }}
           {% elif column == 'student_id' %}{{ row.enrollment.student.matricule }}
           {% elif column == 'entered' %}{{ row.entered }} / {{ courses|length }}
-          {% elif column == 'result' %}{{ (row.percentage ~ ' %') if row.percentage is not none else '—' }}{% endif %}
+          {% elif column == 'result' %}{{ (_('%(value)s %%', value=row.percentage|interface_decimal)) if row.percentage is not none else '—' }}{% endif %}
         </td>{% endfor %}</tr>
       {% else %}<tr><td colspan="{{ report_layout.ranking_columns|length }}">{{ labels.empty }}</td></tr>{% endfor %}</tbody>
     </table>
