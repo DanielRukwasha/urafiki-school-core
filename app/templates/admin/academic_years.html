@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Années académiques{% endblock %}
+{% block title %}{{ _("Années académiques") }}{% endblock %}
 {% block content %}
-<h1>Années académiques</h1>
+<h1>{{ _("Années académiques") }}</h1>
 <ul>
   {% for year in years %}
-    <li>{{ year.label }} {% if year.is_current %}(en cours){% endif %}</li>
+    <li>{{ year.label }} {% if year.is_current %}{{ _("(en cours)") }}{% endif %}</li>
   {% endfor %}
 </ul>
 {% endblock %}

@@ -21,8 +21,7 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 8 | Backend | feat/backend-grilles-et-perimetres | fusionné | 2026-09-22 | #50 | Grilles de cours par niveau, permissions contextuelles |
 | 9 | Frontend | feat/frontend-rendu-et-navigation | livré | 2026-09-23 | #51 | Rendu des bulletins décrit par le serveur |
 | 10 | Backend | feat/backend-conformite-socle | livré | 2026-10-03 | #55 | Mise en conformité du socle avec les invariants (jalon « Conformité du socle ») |
-
-| 11 | Frontend | feat/frontend-conformite-interface | en cours | 2026-10-03 | #56 | Traductions, accessibilite et corrections motivees |
+| 11 | Frontend | feat/frontend-conformite-interface | livré | 2026-10-04 | #56 | Traductions, accessibilité et corrections motivées |
 
 ## Notes
 
@@ -37,3 +36,5 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
   objet hors site (voir RESTAURATION.md). Fusion conditionnée à la revue de
   l'agent Frontend ; la protection de `main` exige désormais une approbation
   par un compte autre que l'auteur.
+
+- **Sprint 11** : livraison Frontend sur #56, empilée sur #55 ; revue Backend requise, routes partagées à relire. Pas de fusion avant Backend et résolution des constats de #55/#54. Les chaînes dynamiques Python non marquées et les snapshots de bulletin restent attendus du Backend. Les chantiers #49/#51 ne sont pas repris par ce sprint.

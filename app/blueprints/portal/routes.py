@@ -11,7 +11,9 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
+from babel.numbers import format_decimal
 from flask import Blueprint, abort, make_response, redirect, render_template, request, url_for
+from flask_babel import get_locale
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -53,6 +55,18 @@ from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidat
 bp = Blueprint("portal", __name__, url_prefix="/portal")
 ALL_ROLES = tuple(RoleEnum)
 EDIT_ROLES = (RoleEnum.DIRECTION, RoleEnum.ENSEIGNANT)
+
+
+@bp.app_context_processor
+def interface_language():
+    return {"interface_locale": str(get_locale())}
+
+
+@bp.app_template_filter("interface_decimal")
+def interface_decimal(value):
+    """Localize an existing server Decimal without another rounding step."""
+    return format_decimal(value, locale=get_locale(), decimal_quantization=False)
+
 
 
 def active(query, model):
@@ -549,9 +563,28 @@ def consolidation(class_id, period_id):
     klass = db.get_or_404(SchoolClass, class_id)
     require_lecture_classe(current_user, klass)
     payload = _server_consolidation_payload(class_id, period_id)
+    from app.models.deliberation_workflow import BulletinVersion, PeriodPublication
+    from app.services.deliberation_service import MOTIF_CORRECTION_MIN
+
+    publication = PeriodPublication.query.filter_by(
+        school_class_id=class_id, period_id=period_id
+    ).first()
+    versions = (
+        BulletinVersion.query.filter_by(publication_id=publication.id)
+        .order_by(BulletinVersion.numero.desc()).all()
+        if publication else []
+    )
+    correction_url = (
+        url_for("portal.publish_correction", class_id=class_id, period_id=period_id)
+        if publication and publication.published and current_user.role == RoleEnum.DIRECTION
+        else None
+    )
     return render_template(
         "portal/consolidation.html",
         consolidation=payload,
+        bulletin_versions=versions,
+        correction_url=correction_url,
+        correction_min_length=MOTIF_CORRECTION_MIN,
         deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),
         preview_url=url_for(
             "portal.print_report", class_id=class_id, period_id=period_id, kind="bulletins"

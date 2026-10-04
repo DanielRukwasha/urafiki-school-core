@@ -1,1 +1,1 @@
-{% extends "base.html" %}{% block content %}<div class="alert" role="alert"><h1>Aperçu non disponible</h1><p>{{ error }}</p><p>Corrigez le formulaire et relancez l’aperçu. Aucun document n’a été publié.</p></div>{% endblock %}
+{% extends "base.html" %}{% block content %}<div class="alert" role="alert"><h1>{{ _("Aperçu non disponible") }}</h1><p>{{ gettext(error) }}</p><p>{{ _("Corrigez le formulaire et relancez l’aperçu. Aucun document n’a été publié.") }}</p></div>{% endblock %}

@@ -190,7 +190,7 @@ def test_missing_scores_are_not_zero(client, portal):
     assert b"Non " in response.data
     assert b"0.00 %" not in response.data
     save(client, portal)
-    assert b"60.00 %" in client.get(portal["url"] + "/results").data
+    assert b"60 %" in client.get(portal["url"] + "/results").data
 
 
 @pytest.mark.parametrize("target", ["https://example.com", "//example.com", "/\\example.com"])

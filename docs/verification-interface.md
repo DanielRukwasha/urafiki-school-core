@@ -69,22 +69,36 @@ Le scénario réel Playwright : ouvrir la grille, couper le réseau, saisir 16, 
 
 La fixture ferme systématiquement son serveur même si le setup échoue : aucun serveur laissé actif ne doit polluer le test suivant. Aucune dépendance PDF ne résout à elle seule une concurrence SQLite.
 
-## Publication, dépendances Backend et critères de fusion
+## Publication, traduction et critères de fusion
 
-Une période soumise/publiée ne rend aucun champ de cote ni action de synchronisation ; test d’intégration sur le HTML brut. La publication demeure annoncée irréversible. Le motif de correction et l’historique auteur/date/version nécessitent le contrat et la validation serveur du Backend : ne pas inventer une route ou stocker une version côté client.
+La PR Frontend #56 est empilée sur la PR Backend #55 : fusion Backend d’abord, puis Frontend après revue croisée. Les modèles et services restent propriété Backend. La revue formelle de #55 relève notamment l’absence de snapshot de bulletin ; l’historique affiché ne prouve donc pas encore l’immuabilité du document.
 
-La traduction de l’ensemble des gabarits et messages JS, catalogue français, pluriels et formats localisés attend le socle Backend. Aucun fallback silencieux de traduction ajouté. La PR Frontend reste en brouillon jusqu’au raccordement des contrats et à la revue Backend. Aucune PR Backend ouverte à la date de démarrage ; #53 demande explicitement sa publication. L’absence de cette PR ne permet pas de produire une revue formelle.
+Le formulaire séparé de correction POSTe le motif obligatoire vers `portal.publish_correction`. Le serveur fournit l’action seulement à la Direction après publication, ainsi que la longueur minimale issue du contrat Backend. Le bulletin publié reste sans champ de cote. L’historique expose numéro, motif, auteur et date localisée ; l’échappement des motifs est testé, et les confirmations irréversibles sont des attributs traduits échappés, sans interpolation dans du JavaScript inline.
 
-## Résultat de ce lot (2026-10-03, avant contrats Backend)
+Les 23 gabarits ont été inspectés : trois composants ne contiennent aucun texte affiché constant ; les autres passent par gettext/ngettext. Les messages JS sont fournis par JSON traduit serveur, avec variables nommées. Les dates utilisent Babel, les nombres un filtre serveur `interface_decimal` sans quantification supplémentaire. Le langage HTML vient de la sélection Babel du tenant, pas d’une couleur ou d’une langue de branding. Les valeurs de saisie conservent le format canonique attendu par le serveur.
 
-- Lint Ruff : réussi.
-- Unitaires/intégration avec PDF natif : 157 réussis, aucun ignoré, 38.02 s (SQLite Linux ; la CI revalide PostgreSQL).
-- Navigateur et PDF : 12 réussis, aucun ignoré, 31.87 s.
-- Contrastes réellement mesurés dans Chromium : bouton Rivage 5.0224082334:1, bouton Horizon 5.2468854695:1 ; titres 7.3063:1 et 14.2096:1. Valeurs et paires complètes dans browser-contrast.json et contrast-ratios.json, archivées avec les artefacts CI.
-- Inspection visuelle des PDF natifs : Rivage page 1 couleur et Horizon page 2 en gris, A4 portrait/paysage, logos, colonnes et signatures lisibles, aucune troncature ni superposition observée. Vérification bornée aux pages inspectées, en complément des contrôles automatiques de toutes les pages.
-- Reprise réseau automatique réussie, puis rechargement confirmant la valeur persistée au serveur. Les captures offline/recovered sont produites par le test.
-- Statut du sprint : en cours. Traductions, catalogue français, formats localisés, UI de correction motivée et historique non livrés faute des contrats Backend suivis dans #54. Revue formelle Backend également en attente de la PR cible. Aucune fusion autorisée par ces seuls résultats.
+```sh
+pybabel extract -F babel.cfg -k _l -k lazy_gettext --no-location --sort-output --project=urafiki-school-core --copyright-holder=Urafiki -o app/translations/messages.pot .
+pybabel update -i app/translations/messages.pot -d app/translations
+pybabel compile -d app/translations
+pytest -ra
+pytest -m "browser or pdf" -ra
+```
 
-### Contrat de correction proposé pour revue Backend (non implémenté)
+Le test CI `test_no_unmarked_visible_template_literals` inspecte le texte HTML et les attributs accessibles. Le test des identités dérive les noms de fixtures ; les codes artificiels d’un ou deux caractères sont exclus pour éviter de confondre des variables de bibliothèques avec des établissements. Cette recherche ne peut identifier un nom inconnu qui n’est dans aucun référentiel de fixtures : la revue humaine reste nécessaire.
 
-Le serveur doit fournir une action de correction uniquement à un compte autorisé, avec URL POST, jeton CSRF, version source et contraintes du motif ; et une liste de versions comprenant numéro, motif, auteur et date/heure localisée. L’interface affichera un formulaire séparé du bulletin publié : motif obligatoire, conséquences explicites et validation serveur des erreurs, puis historique accessible et lisible à l’impression. Le bulletin officiel reste sans champs de saisie. Une version ne sera jamais créée par JavaScript ni par un simple changement de compteur local. Les noms de routes/champs seront ceux publiés par le Backend ; aucune signature fictive ne sera branchée.
+Les textes métier configurés (cours, mentions, libellés de bulletin) viennent de la base et ne doivent pas être remplacés par des libellés imposés dans un catalogue. Les messages Python dynamiques non marqués dans les fichiers Backend restent une demande de revue #55/#54 ; appeler gettext au rendu ne remplace pas l’extraction de leurs chaînes à la source. La présence de liens vers des routes non autorisées (par exemple délibération depuis consolidation pour un titulaire) est signalée au Backend : pas de masquage CSS/JS ajouté.
+
+## Preuves déjà vérifiées avant raccordement
+
+Le lot précédent a passé 157 tests unitaires/intégration avec PDF et 12 tests navigateur/PDF. Les nouvelles traductions et le raccordement Backend exigent une nouvelle exécution complète, dont le résultat sera inscrit dans la PR et le journal de session.
+
+Contrastes Chromium : bouton Rivage 5.0224082334:1, bouton Horizon 5.2468854695:1 ; titres 7.3063:1 et 14.2096:1. Les palettes éloignées comprennent un jaune primaire volontairement inadéquat, corrigé par le garde-fou serveur. Les cellules disposent systématiquement d’un libellé, pas seulement d’une couleur. Aucun total, rang ou pourcentage scolaire n’est calculé en JavaScript.
+
+Inspection des PDF natifs : Rivage page 1 couleur, Horizon page 2 en gris, portrait/paysage A4. Logos, colonnes et signatures lisibles ; absence de troncature ou superposition sur les pages inspectées. Les fichiers PDF sont générés par WeasyPrint, puis rasterisés avec Poppler ; les captures navigateur ne servent pas de preuve du rendu PDF.
+
+## Résultat du raccordement (2026-10-04)
+
+Sur le socle Backend `9b631615302b2bc79e81cc1bb874b95962184f93` et le diff Frontend soumis à #56 : `pytest -ra` donne 250 réussis / 16 désélectionnés (groupes séparés), puis `pytest -m "browser or pdf" -ra` donne 12 réussis / 254 désélectionnés. Aucun test sélectionné ignoré. L’environnement Linux utilise Python 3.11.16, PostgreSQL 16.15, Flask-Babel 4.0.0, Babel 2.18.0, WeasyPrint 70, Playwright 1.63 et Chromium 153. Le job PostgreSQL est reproduit avec `pytest -ra --cov=app --cov-report=term-missing` : 250 réussis, couverture 92 %, migrations montée/descente/remontée réussies. Les dépendances natives et la réconciliation du commit main sont détaillées dans #40.
+
+Les suites natives signalent un avertissement WeasyPrint concernant une dépendance HarfBuzz-Subset requise par une future version ; cela n’a pas empêché la génération actuelle. PDF et ratios sont dans les artefacts `portal-visual-review` de la CI. Inspection complémentaire : `rivage-final-pdf.png` page 1 et `horizon-final-pdf-gray.png` page 2, issues des PDF réels après traduction ; résultat lisible, sans troncature observée sur ces deux pages. Les fichiers temporaires ne sont pas versionnés.
