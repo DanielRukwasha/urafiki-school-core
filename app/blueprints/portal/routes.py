@@ -557,21 +557,31 @@ def _server_consolidation_payload(class_id, period_id):
         abort(502, description="Réponse de consolidation invalide.")
 
 
+@journaliser_lecture(SensitiveReadKind.BULLETIN_CONSULTATION)
+def _published_versions(publication_id):
+    """Produce the version history through the Backend sensitive-read journal."""
+    from app.models.deliberation_workflow import BulletinVersion
+
+    return (
+        BulletinVersion.query.filter_by(publication_id=publication_id)
+        .order_by(BulletinVersion.numero.desc()).all()
+    )
+
+
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/consolidation")
 @roles_required(*ALL_ROLES)
 def consolidation(class_id, period_id):
     klass = db.get_or_404(SchoolClass, class_id)
     require_lecture_classe(current_user, klass)
     payload = _server_consolidation_payload(class_id, period_id)
-    from app.models.deliberation_workflow import BulletinVersion, PeriodPublication
+    from app.models.deliberation_workflow import PeriodPublication
     from app.services.deliberation_service import MOTIF_CORRECTION_MIN
 
     publication = PeriodPublication.query.filter_by(
         school_class_id=class_id, period_id=period_id
     ).first()
     versions = (
-        BulletinVersion.query.filter_by(publication_id=publication.id)
-        .order_by(BulletinVersion.numero.desc()).all()
+        _published_versions(publication.id)
         if publication else []
     )
     correction_url = (
