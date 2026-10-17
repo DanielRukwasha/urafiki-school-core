@@ -184,7 +184,10 @@ class BulletinVersion(db.Model, TenantScopedModel):
     """One published, immutable version of a class/period's bulletins
     (invariant 9). Version 1 is the first publication; every later version
     is a correction and must carry its justification: a mandatory `motif`,
-    its author, its UTC timestamp, and the version it corrects. The rule is
+    its author, its UTC timestamp, and the version it corrects. Each version
+    also freezes the bulletin's full computed content (`contenu`,
+    `empreinte`): printing a published version reads that, never the live
+    grid, grades or school configuration. The rule is
     enforced by a CHECK constraint, not only by the service, so a bulletin
     whose revision cannot be justified cannot exist in the database.
 
@@ -204,6 +207,15 @@ class BulletinVersion(db.Model, TenantScopedModel):
             " AND corrige_version_id IS NOT NULL)",
             name="ck_bulletin_version_correction_justifiee",
         ),
+        # The frozen document and its fingerprint exist together or not at
+        # all. On PostgreSQL the migration also adds, NOT VALID (so the few
+        # backfilled pre-freeze rows stay readable as such),
+        # ck_bulletin_version_contenu_fige: every new version carries one.
+        db.CheckConstraint(
+            "(contenu IS NULL) = (empreinte IS NULL)"
+            " AND (empreinte IS NULL OR length(empreinte) = 64)",
+            name="ck_bulletin_version_contenu_empreinte",
+        ),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -217,6 +229,12 @@ class BulletinVersion(db.Model, TenantScopedModel):
     corrige_version_id = db.Column(
         db.Integer, db.ForeignKey("bulletin_versions.id"), nullable=True, index=True
     )
+    # The bulletin itself, as computed and frozen at publication: canonical
+    # JSON from app/services/contenu_bulletin.py, and the SHA-256 of
+    # exactly those bytes. NULL only for versions backfilled from the
+    # audit log before content freezing existed (migration d7e2b4c1a9f3).
+    contenu = db.Column(db.Text, nullable=True)
+    empreinte = db.Column(db.String(64), nullable=True)
 
     publication = db.relationship("PeriodPublication", backref="versions")
     auteur = db.relationship("User")

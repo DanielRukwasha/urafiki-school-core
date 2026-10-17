@@ -28,8 +28,10 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from flask import url_for
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
+from app.models.academic import EvaluationPeriod, SchoolClass
 from app.models.deliberation import DeliberationPolicy
 from app.models.deliberation_workflow import (
     NEXT_STATUS,
@@ -45,6 +47,7 @@ from app.models.grading import Grade, GradeAuditAction, GradeAuditLog
 from app.models.mixins import utcnow
 from app.models.student import Enrollment
 from app.models.tenant_config import TenantConfig
+from app.services.contenu_bulletin import calculer_contenu, serialiser
 from app.services.grade_calculation_engine import (
     CourseGradeInput,
     compute_period_total,
@@ -66,6 +69,11 @@ class DeliberationConfigError(ValueError):
 class TransitionError(ValueError):
     """Raised when a consolidate/validate/publish transition is invalid
     from the workflow's current state."""
+
+
+class PublicationConcurrenteError(TransitionError):
+    """Another publication or correction of the same class/period was
+    committed first. Surfaced as a controlled 409, never an IntegrityError."""
 
 
 def _passing_threshold(school_class) -> Decimal:
@@ -99,10 +107,59 @@ def _tenant_config() -> TenantConfig | None:
     return TenantConfig.query.filter_by(ecole_id=ecole_id).first()
 
 
-def _publication(school_class_id: int, period_id: int) -> PeriodPublication | None:
-    return PeriodPublication.query.filter_by(
-        school_class_id=school_class_id, period_id=period_id
-    ).first()
+def _publication(
+    school_class_id: int, period_id: int, *, verrou: bool = False
+) -> PeriodPublication | None:
+    """`verrou=True` takes a row lock (SELECT ... FOR UPDATE on PostgreSQL)
+    so concurrent transitions/corrections of one class/period serialize
+    instead of racing on the version counter."""
+    query = PeriodPublication.query.filter_by(school_class_id=school_class_id, period_id=period_id)
+    if verrou:
+        query = query.with_for_update().populate_existing()
+    return query.first()
+
+
+def _commit_publication():
+    try:
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise PublicationConcurrenteError(
+            "Une autre publication de ces bulletins vient d'être enregistrée. "
+            "Rechargez la page avant de recommencer."
+        ) from exc
+
+
+def _version_figee(publication, *, numero, auteur, publie_le, motif=None, corrigee=None):
+    """A new BulletinVersion carrying the bulletin's content computed now,
+    frozen as canonical JSON with its SHA-256 (invariant 9). A correction
+    whose content is identical to the version it corrects is refused:
+    a correction must correct something."""
+    from app.tenant_presentation import presentation_configuration
+
+    klass = db.session.get(SchoolClass, publication.school_class_id)
+    period = db.session.get(EvaluationPeriod, publication.period_id)
+    try:
+        contenu = calculer_contenu(klass, period, presentation_configuration())
+    except GrilleConfigError as exc:
+        raise TransitionError(f"Publication impossible : {exc}") from exc
+    texte, empreinte = serialiser(contenu)
+    if corrigee is not None and corrigee.empreinte == empreinte:
+        raise TransitionError(
+            f"Le bulletin est identique à la version {corrigee.numero} : "
+            "aucune correction à publier."
+        )
+    return BulletinVersion(
+        ecole_id=publication.ecole_id,
+        publication_id=publication.id,
+        numero=numero,
+        motif=motif,
+        auteur_id=auteur.id,
+        publie_le=publie_le,
+        corrige_version_id=corrigee.id if corrigee is not None else None,
+        contenu=texte,
+        empreinte=empreinte,
+    )
 
 
 @dataclass(frozen=True)
@@ -407,7 +464,7 @@ def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPubli
     authorization (titulaire-only for "submit", DIRECTION for the rest)
     is the route layer's job — it has the request's user and the class,
     this function only knows the workflow's own rules."""
-    publication = _publication(school_class_id, period_id)
+    publication = _publication(school_class_id, period_id, verrou=True)
     current_status = publication.status if publication is not None else PublicationStatus.DRAFT
     expected_next = NEXT_STATUS.get(current_status)
     if expected_next is None or TRANSITION_ACTION_FOR_STATUS[expected_next] != action:
@@ -441,13 +498,7 @@ def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPubli
         # unpublish), so this is always version 1; corrections go through
         # `publier_correction`, which demands a motif.
         db.session.add(
-            BulletinVersion(
-                ecole_id=publication.ecole_id,
-                publication_id=publication.id,
-                numero=publication.version,
-                auteur_id=user.id,
-                publie_le=now,
-            )
+            _version_figee(publication, numero=publication.version, auteur=user, publie_le=now)
         )
 
     db.session.add(
@@ -460,7 +511,7 @@ def apply_transition(*, school_class_id, period_id, action, user) -> PeriodPubli
             user_id=user.id,
         )
     )
-    db.session.commit()
+    _commit_publication()
     return publication
 
 
@@ -476,13 +527,12 @@ def _motif_requis(motif: str | None) -> str:
     return motif.strip()
 
 
-def _derniere_version_id(publication: PeriodPublication) -> int | None:
-    latest = (
+def _derniere_version(publication: PeriodPublication) -> BulletinVersion | None:
+    return (
         BulletinVersion.query.filter_by(publication_id=publication.id)
         .order_by(BulletinVersion.numero.desc())
         .first()
     )
-    return latest.id if latest else None
 
 
 def publier_correction(*, school_class_id, period_id, motif, user) -> BulletinVersion:
@@ -493,22 +543,21 @@ def publier_correction(*, school_class_id, period_id, motif, user) -> BulletinVe
     yet — a first publication goes through `apply_transition("publish")`.
     Actor authorization (DIRECTION only) is the route layer's job."""
     motif = _motif_requis(motif)
-    publication = _publication(school_class_id, period_id)
+    publication = _publication(school_class_id, period_id, verrou=True)
     if publication is None or not publication.published:
         raise TransitionError("Aucune version publiée à corriger pour cette classe et période.")
-    corrigee_id = _derniere_version_id(publication)
+    corrigee = _derniere_version(publication)
     now = utcnow()
+    version = _version_figee(
+        publication,
+        numero=publication.version + 1,
+        auteur=user,
+        publie_le=now,
+        motif=motif,
+        corrigee=corrigee,
+    )
     publication.version += 1
     publication.published_at = now
-    version = BulletinVersion(
-        ecole_id=publication.ecole_id,
-        publication_id=publication.id,
-        numero=publication.version,
-        motif=motif,
-        auteur_id=user.id,
-        publie_le=now,
-        corrige_version_id=corrigee_id,
-    )
     db.session.add(version)
     db.session.add(
         DeliberationAuditLog(
@@ -520,7 +569,7 @@ def publier_correction(*, school_class_id, period_id, motif, user) -> BulletinVe
             user_id=user.id,
         )
     )
-    db.session.commit()
+    _commit_publication()
     return version
 
 

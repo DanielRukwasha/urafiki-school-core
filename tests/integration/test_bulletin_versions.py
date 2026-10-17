@@ -54,7 +54,13 @@ def test_first_publication_creates_version_1_without_motif(published):
     assert version.publie_le.utcoffset() is None or version.publie_le.utcoffset().seconds == 0
 
 
-def test_correction_creates_numbered_justified_version(published, client):
+def test_correction_creates_numbered_justified_version(published, client, db):
+    # A correction must correct something: an identical bulletin is refused
+    # (tests/integration/test_contenu_bulletin.py). Stand-in for the
+    # journalized write an accepted DemandeCorrection authorizes.
+    grade = Grade.query.execution_options(skip_tenant_filter=True).one()
+    grade.score = Decimal("16")
+    db.session.commit()
     response = client.post(f"{published['base']}/correction", data={"motif": MOTIF})
     assert response.status_code == 302
 

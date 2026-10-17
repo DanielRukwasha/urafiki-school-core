@@ -8,7 +8,6 @@ all), never a specific class, line, or student.
 """
 
 import json
-from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, abort, make_response, redirect, render_template, request, url_for
@@ -35,18 +34,16 @@ from app.services.authorization_service import (
     require_direction,
     require_lecture_classe,
 )
-from app.services.grade_calculation_engine import (
-    CourseGradeInput,
-    compute_period_total,
-    quantize_percentage,
-    rank_students,
+from app.services.contenu_bulletin import (
+    ContenuBulletinError,
+    CourseColumn,
+    calculer_contenu,
+    colonnes_grille,
+    contenu_de_version,
+    contexte_depuis_contenu,
+    inscriptions_actives,
 )
-from app.services.grille_service import (
-    GrilleConfigError,
-    lignes_actives,
-    maximum_pour_periode,
-    resoudre_grille,
-)
+from app.services.grille_service import GrilleConfigError, lignes_actives, resoudre_grille
 from app.services.journal_lectures import journaliser_lecture
 from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidation
 
@@ -59,45 +56,11 @@ def active(query, model):
     return query.filter(model.archived_at.is_(None))
 
 
-@dataclass(frozen=True)
-class CourseColumn:
-    """A grid line, adapted for the grade grid/report templates — `id` is
-    the `GrilleCoursLigne.id` a `Grade` actually references. `max_score`
-    is the maximum configured for the period this column was built for
-    (None for an appreciation line, which has no numeric maximum)."""
-
-    id: int
-    code: str
-    name: str
-    coefficient: Decimal
-    max_score: Decimal | None
-    is_appreciation: bool
-    groupe_id: int
-
-
 def _course_columns(klass, period=None) -> list[CourseColumn]:
-    """Every active column of the class's grid, in display order. Raises
-    GrilleConfigError (surfaced by callers as a 503) if the class has no
-    grid configured for its (section, niveau, year) — never silently an
-    empty grid."""
-    grille = resoudre_grille(klass)
-    columns = []
-    for ligne in lignes_actives(grille):
-        max_score = None
-        if not ligne.note_par_appreciation and period is not None:
-            max_score = maximum_pour_periode(ligne, period.id)
-        columns.append(
-            CourseColumn(
-                id=ligne.id,
-                code=ligne.cours.code,
-                name=ligne.cours.name,
-                coefficient=ligne.ponderation,
-                max_score=max_score,
-                is_appreciation=ligne.note_par_appreciation,
-                groupe_id=ligne.groupe_cours_id,
-            )
-        )
-    return columns
+    """Every active column of the class's grid, in display order — see
+    `app.services.contenu_bulletin.colonnes_grille` (GrilleConfigError,
+    surfaced by callers as a 503, if the grid is not configured)."""
+    return colonnes_grille(klass, period)
 
 
 def display_columns_for(klass, period=None) -> list[CourseColumn]:
@@ -141,18 +104,7 @@ def context(class_id, period_id):
         abort(503, description=str(error))
     if current_user.role == RoleEnum.ENSEIGNANT and not courses:
         abort(404)
-    enrollments = (
-        active(Enrollment.query, Enrollment)
-        .join(Student)
-        .filter(
-            Enrollment.school_class_id == class_id,
-            Enrollment.academic_year_id == klass.academic_year_id,
-            Enrollment.status != EnrollmentStatus.WITHDRAWN,
-            Student.archived_at.is_(None),
-        )
-        .order_by(Student.last_name, Student.first_name)
-        .all()
-    )
+    enrollments = inscriptions_actives(klass)
     grades = Grade.query.filter(
         Grade.enrollment_id.in_([e.id for e in enrollments]),
         Grade.grille_cours_ligne_id.in_([c.id for c in courses]),
@@ -450,51 +402,55 @@ def _bulletin_read_kind():
     return SensitiveReadKind.BULLETIN_CONSULTATION
 
 
+def _version_lue(class_id, period_id):
+    """The published version a bulletin view reads: `?version=n` when
+    asked explicitly, otherwise the latest. None while the period is not
+    published (the bulletin is then a live, unofficial computation). A
+    version that doesn't exist for this class/period is a 404."""
+    from app.models.deliberation_workflow import BulletinVersion, PeriodPublication
+
+    demandee = request.args.get("version")
+    publication = PeriodPublication.query.filter_by(
+        school_class_id=class_id, period_id=period_id
+    ).first()
+    if publication is None or not publication.published:
+        if demandee is not None:
+            abort(404)
+        return None
+    versions = BulletinVersion.query.filter_by(publication_id=publication.id)
+    if demandee is None:
+        version = versions.order_by(BulletinVersion.numero.desc()).first()
+    elif demandee.isdigit():
+        version = versions.filter_by(numero=int(demandee)).first()
+    else:
+        version = None
+    if version is None:
+        abort(404)
+    return version
+
+
 # Every view that shows bulletin results (results, print, PDF export,
 # report editor/preview) goes through this one function, so it is journaled
-# here once rather than in each route — invariant 10.
+# here once rather than in each route — invariant 10. Once the period is
+# published, the bulletin is read from the frozen version (invariant 9),
+# never recomputed from the live grid, grades or school configuration.
 @journaliser_lecture(_bulletin_read_kind)
 def result_context(class_id, period_id):
+    from app.tenant_presentation import presentation_configuration
+
     ctx = context(class_id, period_id)
-    ctx["grades"] = {key: grade for key, grade in ctx["grades"].items() if not grade.is_archived}
-    rows = []
-    for enrollment in ctx["enrollments"]:
-        inputs = [
-            CourseGradeInput(
-                ligne_id=c.id,
-                groupe_id=c.groupe_id,
-                coefficient=c.coefficient,
-                max_score=c.max_score,
-                score=ctx["grades"][(enrollment.id, c.id)].score
-                if (enrollment.id, c.id) in ctx["grades"]
-                else None,
-                is_numeric=not c.is_appreciation,
-            )
-            for c in ctx["courses"]
-        ]
-        total = compute_period_total(period_id, inputs)
-        rows.append(
-            dict(
-                enrollment=enrollment,
-                total=total,
-                entered=sum(i.score is not None for i in inputs),
-                percentage=quantize_percentage(total.percentage)
-                if total.percentage is not None
-                else None,
-            )
-        )
-    ranks = {
-        r.enrollment_id: r.rank
-        for r in rank_students([(r["enrollment"].id, r["total"].percentage) for r in rows])
-    }
-    unranked = len(rows) + 1
-    rows.sort(
-        key=lambda row: (
-            ranks.get(row["enrollment"].id, unranked),
-            row["enrollment"].student.last_name,
-        )
-    )
-    ctx.update(rows=rows, ranks=ranks)
+    version = _version_lue(class_id, period_id)
+    try:
+        if version is None:
+            contenu = calculer_contenu(ctx["klass"], ctx["period"], presentation_configuration())
+        else:
+            contenu = contenu_de_version(version)
+    except GrilleConfigError as error:
+        abort(503, description=str(error))
+    except ContenuBulletinError as error:
+        abort(409, description=str(error))
+    ctx.update(contexte_depuis_contenu(contenu))
+    ctx.update(bulletin_version=version, presentation=contenu["presentation"])
     return ctx
 
 
@@ -635,7 +591,11 @@ def publish_correction(class_id, period_id):
     """Publish a corrected version of an already-published bulletin, with
     its mandatory motif (invariant 9) — see
     deliberation_service.publier_correction."""
-    from app.services.deliberation_service import TransitionError, publier_correction
+    from app.services.deliberation_service import (
+        PublicationConcurrenteError,
+        TransitionError,
+        publier_correction,
+    )
 
     db.get_or_404(SchoolClass, class_id)
     db.get_or_404(EvaluationPeriod, period_id)
@@ -646,6 +606,8 @@ def publish_correction(class_id, period_id):
             motif=request.form.get("motif", ""),
             user=current_user,
         )
+    except PublicationConcurrenteError as error:
+        return render_template("portal/preview_error.html", error=str(error)), 409
     except TransitionError as error:
         return render_template("portal/preview_error.html", error=str(error)), 422
     return redirect(url_for("portal.consolidation", class_id=class_id, period_id=period_id))
@@ -780,9 +742,14 @@ def audit_log():
 def print_report(class_id, period_id, kind):
     if kind not in ("bulletins", "palmares"):
         abort(404)
+    from app.tenant_presentation import presentation_from_configuration
     from app.ui.report_assets import inline_report_logo
 
-    theme, layout = _report_presentation()
+    ctx = result_context(class_id, period_id)
+    # The printed document's presentation (school name, header, legal
+    # text, signatures, labels) is part of the bulletin: frozen with the
+    # version once published, the tenant's current one before that.
+    theme, layout = presentation_from_configuration(ctx["presentation"])
     pdf = request.args.get("format") == "pdf"
     html = render_template(
         "portal/print.html",
@@ -792,7 +759,7 @@ def print_report(class_id, period_id, kind):
         ui_theme=theme,
         report_layout=layout,
         report_logo_url=inline_report_logo(theme.logo_url) if pdf else theme.logo_url,
-        **result_context(class_id, period_id),
+        **ctx,
     )
     if request.args.get("format") != "pdf":
         return html
