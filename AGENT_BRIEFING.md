@@ -107,6 +107,59 @@ invariant sans test qui le réfute est un vœu, pas un invariant.
   rubriques **Livré**, **Bloqué** et **Attendu de l'autre agent**, plus la
   mise à jour de la ligne de `SPRINTS.md`.
 
+## 6 bis. Compte machine des agents
+
+**Règle** : aucun agent ne pousse, n'ouvre de PR, ne commente ni n'approuve
+sous le compte personnel du propriétaire. Les agents agissent sous le
+compte machine `urafiki-bot`. Tant que son jeton n'est pas disponible dans
+l'environnement de l'agent, celui-ci travaille et commite **en local
+uniquement** ; il ne pousse rien.
+
+**Création (propriétaire, une fois)**
+1. Créer le compte GitHub `urafiki-bot`, avec une adresse dédiée et
+   l'authentification à deux facteurs.
+2. L'inviter sur `urafiki-school-core` avec le rôle **Write**, jamais
+   Maintain ni Admin. La protection de `main` (`enforce_admins`) continue
+   de s'appliquer.
+3. Sous `urafiki-bot`, créer un **jeton à portée fine** (fine-grained PAT) :
+   - dépôt : `DanielRukwasha/urafiki-school-core` **uniquement** ;
+   - permissions : Contents lecture/écriture, Pull requests
+     lecture/écriture, Issues lecture/écriture, Metadata lecture,
+     Actions lecture, Checks lecture ;
+   - **Workflows** : non accordé par défaut. Un jeton distinct, à durée
+     courte, est émis seulement pour une PR qui modifie `.github/workflows/` ;
+   - aucune permission d'administration, de secrets, de webhooks ni de
+     paramètres du dépôt ;
+   - expiration : **90 jours au plus**.
+4. Déposer le jeton dans l'environnement de l'agent (gestionnaire de
+   secrets ou trousseau du système, exporté en `GH_TOKEN`). **Jamais** dans
+   le dépôt, un fichier suivi, un commit, un journal, un commentaire ni une
+   sortie de commande.
+
+**Identité des commits** : `git config user.name "urafiki-bot"` et
+`user.email` sur l'adresse *noreply* GitHub du compte. Le rôle de l'agent
+(Backend ou Frontend) figure dans le message de commit et dans la PR.
+
+**Rotation**
+- Renouveler le jeton au moins 7 jours avant son expiration, ou
+  immédiatement en cas de doute sur une fuite. Le nouveau jeton est créé
+  avant la révocation de l'ancien.
+- Consigner dans [SYNC] la date de rotation et la date d'expiration,
+  **jamais le jeton**.
+- Un jeton exposé (journal, capture, commit) est révoqué sur-le-champ, puis
+  l'historique est nettoyé ; l'incident est publié dans [SYNC].
+
+**Approbations** : la protection de `main` exige l'approbation d'un compte
+autre que l'auteur. Si les deux agents publient sous `urafiki-bot`, ils
+restent le même compte et ne peuvent pas s'approuver mutuellement : il faut
+soit un compte machine par agent (`urafiki-bot-backend`,
+`urafiki-bot-frontend`), soit une approbation humaine du propriétaire.
+Décision attendue du propriétaire (#66).
+
+**Contrôle en début de session** : `gh auth status` doit indiquer
+`urafiki-bot` comme compte actif. Sinon, travail local uniquement, et
+écart publié dans [SYNC].
+
 ## 7. Tests : un test qui diffère entre local et CI ne prouve rien
 
 - `pytest` en local exécute exactement le job CI `test`. Les groupes
