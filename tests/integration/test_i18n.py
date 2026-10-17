@@ -12,7 +12,7 @@ from babel.messages.mofile import write_mo
 from babel.messages.pofile import read_po
 from flask import render_template_string
 
-from app.i18n import LangueNonDisponibleError, select_locale
+from app.i18n import LangueNonDisponibleError, langues_disponibles, select_locale
 from app.security.tenant import resolve_tenant
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +43,25 @@ def test_unavailable_tenant_language_raises_explicitly(app, db, tenant_a):
     with app.test_request_context("/", base_url=f"http://{tenant_a.domain}"):
         resolve_tenant()
         with pytest.raises(LangueNonDisponibleError, match="xx"):
+            select_locale()
+
+
+def test_declared_language_without_compiled_catalog_raises_explicitly(app, db, tenant_a, tmp_path):
+    """Revue de #55, bloquant 2 : sw est déclaré, mais sans catalogue compilé
+    il afficherait les msgid français sans erreur. La sélection doit échouer
+    explicitement — même avec un .po présent mais jamais compilé."""
+    directory = tmp_path / "translations"
+    shutil.copytree(TRANSLATIONS, directory)
+    (directory / "sw" / "LC_MESSAGES").mkdir(parents=True)
+    shutil.copy(TRANSLATIONS / "messages.pot", directory / "sw" / "LC_MESSAGES" / "messages.po")
+    app.extensions["babel"].translation_directories = [str(directory)]
+    tenant_a.locale = "sw"
+    db.session.commit()
+    assert "sw" in app.config["LANGUES_DISPONIBLES"]
+    with app.test_request_context("/", base_url=f"http://{tenant_a.domain}"):
+        resolve_tenant()
+        assert "sw" not in langues_disponibles()
+        with pytest.raises(LangueNonDisponibleError, match="sans catalogue compilé"):
             select_locale()
 
 
