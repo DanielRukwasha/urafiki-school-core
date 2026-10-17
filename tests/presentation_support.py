@@ -93,8 +93,7 @@ def report_context(slug, count=2):
 
 @pytest.fixture()
 def branded_app(app, tmp_path):
-    Image = pytest.importorskip("PIL.Image")
-    ImageDraw = pytest.importorskip("PIL.ImageDraw")
+    from PIL import Image, ImageDraw
 
     _seed_example_tenants()
 

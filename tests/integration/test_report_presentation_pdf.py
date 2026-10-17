@@ -1,5 +1,4 @@
 import io
-import os
 from pathlib import Path
 
 import pytest
@@ -16,13 +15,9 @@ branded_app = presentation_support.branded_app
 
 @pytest.mark.parametrize("slug", ["rivage", "horizon"])
 def test_configured_reports_keep_branding_language_and_a4(branded_app, slug):
-    try:
-        from pypdf import PdfReader
-        from weasyprint import HTML
-    except (ImportError, OSError) as error:
-        if os.environ.get("REQUIRE_PDF"):
-            pytest.fail(str(error))
-        pytest.skip("Native PDF dependencies are optional locally")
+    # Availability is guaranteed by the `pdf` tier check in tests/conftest.py.
+    from pypdf import PdfReader
+    from weasyprint import HTML
     sample = EXAMPLES[slug]
     with branded_app.test_request_context(f"http://{slug}.localhost/"):
         logo = inline_report_logo(sample["branding"]["logo_url"])

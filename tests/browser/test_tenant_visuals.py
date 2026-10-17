@@ -1,7 +1,6 @@
 import threading
 from pathlib import Path
 
-import pytest
 from werkzeug.serving import make_server
 
 from tests import presentation_support
@@ -9,7 +8,10 @@ from tests.presentation_support import EXAMPLES  # noqa: F401
 
 branded_app = presentation_support.branded_app
 
-playwright = pytest.importorskip("playwright.sync_api")
+try:
+    from playwright import sync_api as playwright
+except ImportError:  # the tier check in tests/conftest.py fails the run explicitly
+    playwright = None
 
 
 def test_two_fictitious_presentations_and_reports(branded_app):

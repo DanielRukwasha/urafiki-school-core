@@ -178,3 +178,86 @@ class DeliberationAuditLog(db.Model, TenantScopedModel):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<DeliberationAuditLog {self.action} period={self.period_id}>"
+
+
+class BulletinVersion(db.Model, TenantScopedModel):
+    """One published, immutable version of a class/period's bulletins
+    (invariant 9). Version 1 is the first publication; every later version
+    is a correction and must carry its justification: a mandatory `motif`,
+    its author, its UTC timestamp, and the version it corrects. Each version
+    also freezes the bulletin's full computed content (`contenu`,
+    `empreinte`): printing a published version reads that, never the live
+    grid, grades or school configuration. The rule is
+    enforced by a CHECK constraint, not only by the service, so a bulletin
+    whose revision cannot be justified cannot exist in the database.
+
+    Rows are never updated or deleted: see the ORM guards below and, on
+    PostgreSQL, the trigger installed by the migration.
+    """
+
+    __tablename__ = "bulletin_versions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "ecole_id", "publication_id", "numero", name="uq_bulletin_version_numero"
+        ),
+        db.CheckConstraint("numero >= 1", name="ck_bulletin_version_numero_positive"),
+        db.CheckConstraint(
+            "(numero = 1 AND motif IS NULL AND corrige_version_id IS NULL)"
+            " OR (numero > 1 AND motif IS NOT NULL AND length(trim(motif)) >= 10"
+            " AND corrige_version_id IS NOT NULL)",
+            name="ck_bulletin_version_correction_justifiee",
+        ),
+        # The frozen document and its fingerprint exist together or not at
+        # all. On PostgreSQL the migration also adds, NOT VALID (so the few
+        # backfilled pre-freeze rows stay readable as such),
+        # ck_bulletin_version_contenu_fige: every new version carries one.
+        db.CheckConstraint(
+            "(contenu IS NULL) = (empreinte IS NULL)"
+            " AND (empreinte IS NULL OR length(empreinte) = 64)",
+            name="ck_bulletin_version_contenu_empreinte",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    publication_id = db.Column(
+        db.Integer, db.ForeignKey("period_publications.id"), nullable=False, index=True
+    )
+    numero = db.Column(db.Integer, nullable=False)
+    motif = db.Column(db.Text, nullable=True)
+    auteur_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    publie_le = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    corrige_version_id = db.Column(
+        db.Integer, db.ForeignKey("bulletin_versions.id"), nullable=True, index=True
+    )
+    # The bulletin itself, as computed and frozen at publication: canonical
+    # JSON from app/services/contenu_bulletin.py, and the SHA-256 of
+    # exactly those bytes. NULL only for versions backfilled from the
+    # audit log before content freezing existed (migration d7e2b4c1a9f3).
+    contenu = db.Column(db.Text, nullable=True)
+    empreinte = db.Column(db.String(64), nullable=True)
+
+    publication = db.relationship("PeriodPublication", backref="versions")
+    auteur = db.relationship("User")
+    corrige_version = db.relationship("BulletinVersion", remote_side=[id])
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<BulletinVersion publication={self.publication_id} v{self.numero}>"
+
+
+class ImmutableRecordError(RuntimeError):
+    """Raised when code tries to modify or delete a published version."""
+
+
+@db.event.listens_for(BulletinVersion, "before_update")
+def _forbid_bulletin_version_update(_mapper, _connection, target):
+    raise ImmutableRecordError(
+        f"Version de bulletin {target.numero} publiée : immuable. "
+        "Une correction crée une nouvelle version avec motif."
+    )
+
+
+@db.event.listens_for(BulletinVersion, "before_delete")
+def _forbid_bulletin_version_delete(_mapper, _connection, target):
+    raise ImmutableRecordError(
+        f"Version de bulletin {target.numero} publiée : suppression interdite."
+    )

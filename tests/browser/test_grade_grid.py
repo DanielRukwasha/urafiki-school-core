@@ -15,7 +15,10 @@ from app.models.tenant_config import TenantConfig
 from app.models.user import RoleEnum
 from app.security.tenant import resolve_tenant
 
-playwright = pytest.importorskip("playwright.sync_api")
+try:
+    from playwright import sync_api as playwright
+except ImportError:  # the tier check in tests/conftest.py fails the run explicitly
+    playwright = None
 
 
 @pytest.fixture()
@@ -26,7 +29,7 @@ def tenant_a(db, calculation_strategy_standard):
     tenant's domain has to be "127.0.0.1", not the fixed test domain other
     files use, or every request the real browser makes would 404."""
     institution = Institution(
-        name="Institut Mont Carmel", short_code="IMC", domain="127.0.0.1"
+        name="École Fictive Alpha", short_code="EFA", domain="127.0.0.1"
     )
     db.session.add(institution)
     db.session.commit()

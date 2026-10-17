@@ -1,8 +1,8 @@
 """Tests bloquants — isolation multi-tenant.
 
-Ces tests tournent sur deux tenants fictifs simultanés (tenant_a / Institut
-Mont Carmel et tenant_b / Lycée Kasa-Vubu, voir tests/conftest.py) avec des
-barèmes et configurations volontairement différents. Toute pénétration
+Ces tests tournent sur deux tenants fictifs simultanés (tenant_a / École
+Fictive Alpha et tenant_b / École Fictive Beta, voir tests/conftest.py) aux
+structures volontairement divergentes (périodes, barème, délibération). Toute pénétration
 entre les deux ici doit faire échouer la CI — voir
 ARCHITECTURE_MULTITENANT.md. Aucune exception.
 """

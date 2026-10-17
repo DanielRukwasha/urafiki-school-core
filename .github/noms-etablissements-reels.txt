@@ -1,0 +1,14 @@
+# Noms d'établissements RÉELS (clients, prospects) — interdits dans app/ et tests/.
+# Contrôlé par tests/unit/test_aucun_nom_reel.py (bloquant en CI).
+#
+# Ce fichier est volontairement hors des chemins contrôlés. Une entrée par
+# ligne. Les noms sont comparés sans tenir compte de la casse, des accents,
+# des espaces ni de la ponctuation ("Mont-Carmel", "montcarmel", "MONT CARMEL"
+# sont tous détectés). Préfixe "code:" = code court, recherché comme mot
+# entier et en respectant la casse.
+#
+# Ajouter ici tout nouvel établissement réel AVANT de l'embarquer.
+Mont Carmel
+Kasa-Vubu
+code:IMC
+code:LKV

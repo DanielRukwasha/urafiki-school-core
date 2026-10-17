@@ -72,7 +72,7 @@ def second_grille_ligne(db, tenant_a, grille_cours, groupe_cours, evaluation_per
 
 def _extra_student(db, tenant_a, school_class, academic_year, n):
     student = Student(
-        ecole_id=tenant_a.id, matricule=f"IMC-{n:04}", first_name=f"Eleve{n}", last_name="Test"
+        ecole_id=tenant_a.id, matricule=f"EFA-{n:04}", first_name=f"Eleve{n}", last_name="Test"
     )
     db.session.add(student)
     db.session.flush()

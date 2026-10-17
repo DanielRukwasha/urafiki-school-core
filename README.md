@@ -125,12 +125,45 @@ flask shell
 
 ## Tests
 
+La suite est découpée en **groupes**. Un même groupe donne le même résultat
+en local et en CI : aucun test n'est ignoré en silence. Si un groupe
+sélectionné manque d'une dépendance système, **toute la suite échoue** avec
+un message qui nomme la dépendance (vérification dans `tests/conftest.py`).
+
+| Groupe | Commande | Dépendances | Job CI |
+|---|---|---|---|
+| Défaut (unitaires, intégration, isolation, invariants) | `pytest` | `requirements-dev.txt` | `test` (PostgreSQL 16) |
+| Navigateur et PDF | `pytest -m "browser or pdf"` | `requirements-browser.txt`, `requirements-pdf.txt`, Chromium, Pango | `browser-pdf` |
+| Sauvegarde et restauration | `pytest -m sauvegarde` | `requirements-ops.txt`, `pg_dump`, `pg_restore`, `gpg`, PostgreSQL migré | `sauvegarde-restauration` |
+
 ```bash
-pytest --cov=app --cov-report=term-missing
+pytest -ra                       # identique au job CI « test »
 ruff check .
 ```
 
-La CI (`.github/workflows/ci.yml`) exécute la suite contre un vrai service PostgreSQL et fait échouer le build sur toute régression de lint ou de test.
+**Dépendances système par groupe**
+
+- `browser` : `pip install -r requirements-browser.txt` puis
+  `python -m playwright install --with-deps chromium`. Fonctionne sous
+  Windows, macOS et Linux.
+- `pdf` : `pip install -r requirements-pdf.txt` et les bibliothèques natives
+  **Pango** (Debian/Ubuntu : `apt-get install libpango-1.0-0 libpangoft2-1.0-0` ;
+  Windows : GTK3 runtime, ou exécuter ce groupe sous WSL). Sans Pango, la
+  suite échoue explicitement : « pdf : module weasyprint indisponible ».
+- `sauvegarde` : PostgreSQL 16 avec une base migrée désignée par
+  `SAUVEGARDE_DATABASE_URL`, outils clients PostgreSQL 16 et GnuPG.
+
+**Base de données des tests.** Par défaut, SQLite en mémoire (une seule
+connexion partagée, valable uniquement pour les tests mono-thread). Les
+tests navigateur, qui font tourner un serveur multi-thread, reçoivent
+automatiquement une base SQLite par fichier. La CI exécute le groupe par
+défaut contre PostgreSQL (`TEST_DATABASE_URL`).
+
+**Tenants de test.** Deux établissements fictifs aux structures volontairement
+divergentes (périodes, barème, arrondi, délibération). Voir le tableau en
+tête de `tests/conftest.py`. Aucun nom d'établissement réel n'est admis dans
+`app/` ni dans `tests/` : `tests/unit/test_aucun_nom_reel.py` le vérifie,
+avec une liste tenue dans `.github/noms-etablissements-reels.txt`.
 
 ## Feuille de route
 
@@ -151,6 +184,4 @@ Le portail enseignant et direction est accessible sur /portal/ apres connexion.
 Il comprend les attributions, la saisie avec brouillons locaux et synchronisation HTMX,
 les resultats de periode et les bulletins/palmares A4.
 Voir [architecture, fonctionnement et verification](docs/frontend.md).
-Pour les PDF : pip install -r requirements-pdf.txt et installer les bibliotheques natives Pango.
-Pour les tests navigateur : pip install -r requirements-browser.txt, puis
-python -m playwright install chromium et pytest tests/browser -q.
+Pour les PDF et les tests navigateur, voir la section [Tests](#tests).
