@@ -7,7 +7,10 @@
 
 Chaîne d'une sauvegarde :
 1. relevé du nombre de lignes de chaque table et de la révision Alembic ;
-2. pg_dump au format custom (-Fc) ;
+2. pg_dump au format custom (-Fc), sur le même instantané PostgreSQL que le
+   relevé (transaction REPEATABLE READ, instantané exporté, pg_dump
+   --snapshot) : une écriture concurrente ne peut pas désaccorder le
+   manifeste et le dump ;
 3. chiffrement GPG symétrique AES-256 : déchiffrable par un humain avec la
    seule phrase de passe, sans ce code, en cas de sinistre ;
 4. envoi vers le stockage hors site, avec un manifeste JSON (empreinte
@@ -43,6 +46,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -202,26 +206,51 @@ def _executer(commande: list[str], **kwargs) -> subprocess.CompletedProcess:
         raise SauvegardeError(f"Échec de {commande[0]} : {detail}") from error
 
 
+def _releve(curseur) -> dict:
+    curseur.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
+    )
+    tables = [ligne[0] for ligne in curseur.fetchall()]
+    comptes = {}
+    for table in tables:
+        curseur.execute(f'SELECT count(*) FROM public."{table}"')
+        comptes[table] = curseur.fetchone()[0]
+    revision = None
+    if "alembic_version" in tables:
+        curseur.execute("SELECT version_num FROM alembic_version")
+        ligne = curseur.fetchone()
+        revision = ligne[0] if ligne else None
+    return {"revision_alembic": revision, "lignes": comptes}
+
+
 def releve_base(url: str) -> dict:
     """Révision Alembic et nombre de lignes de chaque table du schéma public."""
     import psycopg
 
     with psycopg.connect(url_libpq(url)) as connexion, connexion.cursor() as curseur:
-        curseur.execute(
-            "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
-        )
-        tables = [ligne[0] for ligne in curseur.fetchall()]
-        comptes = {}
-        for table in tables:
-            curseur.execute(f'SELECT count(*) FROM public."{table}"')
-            comptes[table] = curseur.fetchone()[0]
-        revision = None
-        if "alembic_version" in tables:
-            curseur.execute("SELECT version_num FROM alembic_version")
-            ligne = curseur.fetchone()
-            revision = ligne[0] if ligne else None
-    return {"revision_alembic": revision, "lignes": comptes}
+        return _releve(curseur)
+
+
+@contextmanager
+def instantane_partage(url: str):
+    """Ouvre une transaction REPEATABLE READ en lecture seule, exporte son
+    instantané et fait le relevé dedans. Rend (identifiant d'instantané,
+    relevé) ; la transaction reste ouverte tant que le bloc dure, condition
+    pour que `pg_dump --snapshot` voie exactement les mêmes données que le
+    relevé — sinon une écriture entre les deux produirait un dump valide
+    mais un manifeste faux, et la restauration mensuelle échouerait."""
+    import psycopg
+
+    with psycopg.connect(url_libpq(url)) as connexion:
+        connexion.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
+        connexion.read_only = True
+        with connexion.cursor() as curseur:
+            # Première instruction de la transaction : elle fixe l'instantané.
+            curseur.execute("SELECT pg_export_snapshot()")
+            instantane = curseur.fetchone()[0]
+            releve = _releve(curseur)
+            yield instantane, releve
 
 
 def _phrase_de_passe() -> str:
@@ -254,12 +283,12 @@ def sauvegarder(database_url: str, stockage: Stockage, maintenant: datetime | No
     maintenant = maintenant or datetime.now(UTC)
     nom = nom_sauvegarde(maintenant)
     phrase = _phrase_de_passe()
-    releve = releve_base(database_url)
     with tempfile.TemporaryDirectory() as dossier:
         dump = Path(dossier) / "base.dump"
         chiffre = Path(dossier) / (nom + SUFFIXE_DUMP)
-        _executer(["pg_dump", "--format=custom", "--no-owner", "--file", str(dump),
-                   url_libpq(database_url)])
+        with instantane_partage(database_url) as (instantane, releve):
+            _executer(["pg_dump", "--format=custom", "--no-owner", f"--snapshot={instantane}",
+                       "--file", str(dump), url_libpq(database_url)])
         _executer(["gpg", "--batch", "--yes", "--pinentry-mode", "loopback",
                    "--passphrase-file", phrase, "--symmetric", "--cipher-algo", "AES256",
                    "--output", str(chiffre), str(dump)])

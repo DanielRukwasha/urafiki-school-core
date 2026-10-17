@@ -74,3 +74,41 @@ def test_wrong_passphrase_cannot_restore(tmp_path, phrase, base_vide):
     phrase.write_text("mauvaise phrase de passe")
     with pytest.raises(SauvegardeError, match="gpg"):
         restaurer(stockage, base_vide)
+
+
+@pytest.fixture()
+def table_active():
+    """Une table de la base source qui reçoit des écritures pendant la
+    sauvegarde, supprimée ensuite."""
+    with psycopg.connect(url_libpq(SOURCE), autocommit=True) as connexion:
+        connexion.execute("CREATE TABLE ecritures_concurrentes (id serial PRIMARY KEY)")
+    yield "ecritures_concurrentes"
+    with psycopg.connect(url_libpq(SOURCE), autocommit=True) as connexion:
+        connexion.execute("DROP TABLE IF EXISTS ecritures_concurrentes")
+
+
+def test_write_during_backup_keeps_manifest_and_dump_consistent(
+    tmp_path, phrase, base_vide, table_active, monkeypatch
+):
+    """Revue de #55, bloquant 3 : une écriture validée entre le relevé et
+    pg_dump ne doit pas désaccorder le manifeste et le dump. Sans instantané
+    partagé, le manifeste compte 0 ligne, le dump en contient 1, et la
+    restauration échoue sur une sauvegarde pourtant saine."""
+    executer = outil._executer
+
+    def ecrire_puis_executer(commande):
+        if commande[0] == "pg_dump":
+            with psycopg.connect(url_libpq(SOURCE), autocommit=True) as connexion:
+                connexion.execute(f"INSERT INTO {table_active} DEFAULT VALUES")
+        return executer(commande)
+
+    monkeypatch.setattr(outil, "_executer", ecrire_puis_executer)
+    stockage = StockageFichier(tmp_path / "hors-site")
+    sauvegarder(SOURCE, stockage)
+
+    with psycopg.connect(url_libpq(SOURCE)) as connexion:
+        assert connexion.execute(f"SELECT count(*) FROM {table_active}").fetchone()[0] == 1
+    rapport = restaurer(stockage, base_vide)
+    with psycopg.connect(base_vide) as connexion:
+        assert connexion.execute(f"SELECT count(*) FROM {table_active}").fetchone()[0] == 0
+    assert rapport["tables"] > 0
