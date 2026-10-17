@@ -96,3 +96,24 @@ def test_super_admin_access_without_motif_is_refused(super_admin, tenant_a, moti
     with pytest.raises(JournalisationError):
         _lire_tenant(super_admin=super_admin, ecole_id=tenant_a.id, motif=motif)
     assert TenantAccessAuditLog.query.execution_options(skip_tenant_filter=True).count() == 0
+
+
+def test_journal_never_commits_the_callers_pending_writes(app, db, tenant_a):
+    """Revue de #55 : le décorateur valide sa ligne de journal ; il ne doit
+    pas valider au passage une écriture en attente de l'appelant."""
+    from app.models.academic import Section
+    from app.services.journal_lectures import journaliser_lecture
+
+    @journaliser_lecture(SensitiveReadKind.EXPORT_DONNEES, ecole_id=lambda *_: tenant_a.id,
+                         resource=lambda *_: "test")
+    def lecture():
+        return "donnée"
+
+    db.session.add(Section(ecole_id=tenant_a.id, name="Écriture non validée"))
+    with pytest.raises(JournalisationError, match="en attente"):
+        lecture()
+    db.session.rollback()
+    assert Section.query.execution_options(skip_tenant_filter=True).filter_by(
+        name="Écriture non validée"
+    ).count() == 0
+    assert _logs() == []

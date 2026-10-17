@@ -13,6 +13,13 @@ contournerait ces fonctions est une anomalie de revue.
   (une tentative refusée en 404 n'a rien lu).
 - `journaliser_acces_super_admin` : journalise AVANT l'exécution, motif
   obligatoire — la tentative d'accès elle-même est l'événement.
+
+Contrat transactionnel : chaque décorateur valide (commit) sa propre ligne
+de journal. Il ne doit donc jamais valider au passage des écritures de
+l'appelant : si la session contient des écritures en attente au moment de
+journaliser, il lève `JournalisationError` au lieu de les valider en
+silence. Une fonction décorée est une lecture ; l'appelant qui écrit
+valide ou annule ses écritures avant de lire.
 """
 
 from __future__ import annotations
@@ -49,6 +56,20 @@ def _authenticated_user_id() -> int | None:
     return None
 
 
+def _refuser_ecritures_en_attente(fonction: str) -> None:
+    en_attente = [
+        *db.session.new,
+        *db.session.deleted,
+        *(objet for objet in db.session.dirty if db.session.is_modified(objet)),
+    ]
+    if en_attente:
+        raise JournalisationError(
+            f"Journalisation de {fonction} : {len(en_attente)} écriture(s) de l'appelant en "
+            "attente ({}). Le journal ne les validera pas à sa place : valider ou annuler "
+            "avant la lecture.".format(", ".join(sorted({type(o).__name__ for o in en_attente})))
+        )
+
+
 def _cli_actor() -> str:
     try:
         return f"cli:{getpass.getuser()}"[:100]
@@ -80,6 +101,7 @@ def journaliser_lecture(
                     f"Lecture sensible via {func.__qualname__} sans tenant identifiable : "
                     "impossible à journaliser, donc refusée."
                 )
+            _refuser_ecritures_en_attente(func.__qualname__)
             user_id = _authenticated_user_id()
             db.session.add(
                 SensitiveReadLog(
@@ -114,6 +136,7 @@ def journaliser_acces_super_admin(func):
             raise JournalisationError(
                 "Accès super-administrateur à un tenant : motif d'au moins 10 caractères requis."
             )
+        _refuser_ecritures_en_attente(func.__qualname__)
         db.session.add(
             TenantAccessAuditLog(
                 ecole_id=ecole_id,
