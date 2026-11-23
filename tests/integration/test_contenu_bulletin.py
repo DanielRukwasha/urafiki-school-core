@@ -240,3 +240,47 @@ def test_version_1_still_renders_identically_when_the_live_grid_becomes_invalid(
     results_apres = client.get(f"{published['base']}/results")
     assert results_apres.status_code == 200
     assert results_apres.get_data() == results_avant.get_data()
+
+
+def _corriger_en_v2(published, client, db):
+    _grade(published["enrollment"], published["ligne"], published["period"]).score = Decimal("18")
+    db.session.commit()
+    assert client.post(
+        f"{published['base']}/consolidation/correction", data={"motif": MOTIF}
+    ).status_code == 302
+
+
+def _lien_pdf(html):
+    import html as html_lib
+    import re
+
+    (href,) = re.findall(r'href="([^"]*format=pdf[^"]*)"', html)
+    return html_lib.unescape(href)
+
+
+def test_pdf_link_of_an_explicit_version_targets_that_version(published, client, db):
+    """Revue de suivi de #55 : depuis ?version=1, le lien Télécharger doit
+    viser la V1, pas la dernière version publiée."""
+    _corriger_en_v2(published, client, db)
+    assert "version=1" in _lien_pdf(_bulletin(client, published, version=1)[1])
+    assert "version=2" in _lien_pdf(_bulletin(client, published, version=2)[1])
+    assert "version=2" in _lien_pdf(_bulletin(client, published)[1])
+
+
+@pytest.mark.pdf
+def test_downloading_from_version_1_after_version_2_yields_version_1_pdf(published, client, db):
+    import io
+
+    import pypdf
+
+    _corriger_en_v2(published, client, db)
+    response = client.get(_lien_pdf(_bulletin(client, published, version=1)[1]))
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "application/pdf"
+    texte = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(response.data)).pages)
+    assert "75.00" in texte and "90.00" not in texte
+
+    # Contre-épreuve : sans version explicite, le PDF est bien celui de la V2.
+    dernier = client.get(_lien_pdf(_bulletin(client, published)[1]))
+    texte_v2 = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(dernier.data)).pages)
+    assert "90.00" in texte_v2

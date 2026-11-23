@@ -15,7 +15,7 @@
   {% if not pdf %}
   <nav class="toolbar" aria-label="{{ labels.back }}">
     <a href="{{ url_for('portal.results', class_id=klass.id, period_id=period.id) }}">{{ labels.back }}</a>
-    {% if not preview %} · <a href="{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}">{{ labels.download }}</a>{% endif %}
+    {% if not preview %} · <a href="{% if bulletin_version %}{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf', version=bulletin_version.numero) }}{% else %}{{ url_for('portal.print_report', class_id=klass.id, period_id=period.id, kind=kind, format='pdf') }}{% endif %}">{{ labels.download }}</a>{% endif %}
   </nav>
   {% endif %}
   {% macro header(title) %}
