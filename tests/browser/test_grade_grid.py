@@ -101,30 +101,33 @@ def browser_portal(
     server = make_server("127.0.0.1", 0, app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    with playwright.sync_playwright() as pw:
-        browser = pw.chromium.launch()
-        context = browser.new_context(viewport={"width": 1440, "height": 1000})
-        page = context.new_page()
-        errors = []
-        page.on("pageerror", lambda error: errors.append(str(error)))
-        page.on("dialog", lambda dialog: dialog.accept())
-        base = f"http://127.0.0.1:{server.server_port}"
-        page.goto(base + "/auth/login")
-        page.locator("#email").fill(user.email)
-        page.locator("#password").fill(password)
-        page.locator('input[type="submit"]').click()
-        page.wait_for_url("**/portal/")
-        path = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
-        page.goto(base + path + "/grid")
-        page.wait_for_function(
-            "document.querySelector('.grade-input') && !document.querySelector('.grade-input').disabled"
-        )
-        yield page, context, base, path
-        context.close()
-        browser.close()
-        assert not errors
-    server.shutdown()
-    thread.join(timeout=5)
+    try:
+        with playwright.sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            page = context.new_page()
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("dialog", lambda dialog: dialog.accept())
+            base = f"http://127.0.0.1:{server.server_port}"
+            page.goto(base + "/auth/login")
+            page.locator("#email").fill(user.email)
+            page.locator("#password").fill(password)
+            page.locator('input[type="submit"]').click()
+            page.wait_for_url("**/portal/")
+            path = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
+            page.goto(base + path + "/grid")
+            page.wait_for_function(
+                "document.querySelector('.grade-input') && !document.querySelector('.grade-input').disabled"
+            )
+            yield page, context, base, path
+            context.close()
+            browser.close()
+            assert not errors
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
 
 
 def test_save_validation_keyboard_and_mobile(browser_portal):
@@ -163,13 +166,20 @@ def test_offline_draft_survives_reload_and_reconnect(browser_portal):
     cell.fill("16")
     playwright.expect(page.locator(".cell-status").first).to_have_text("Brouillon local")
     assert page.evaluate("Object.keys(localStorage).some(k => k.startsWith('urafiki:'))")
+    assert page.locator(".cell-status").first.inner_text().strip()
+    page.screenshot(path="tmp/portal-review/network-offline.png", full_page=True)
     page.route("**/sync", lambda route: route.abort())
     context.set_offline(False)
     page.reload()
     playwright.expect(cell).to_have_value("16")
     page.unroute("**/sync")
-    page.locator("#retry-sync").click()
+    # A new online event must resume automatically, without clicking Retry.
+    context.set_offline(True)
+    context.set_offline(False)
     playwright.expect(page.locator(".cell-status").first).to_have_text("Enregistré sur le serveur")
+    page.reload()
+    playwright.expect(cell).to_have_value("16.00")
+    page.screenshot(path="tmp/portal-review/network-recovered.png", full_page=True)
 
 
 def test_edit_during_save_keeps_newer_value(browser_portal):

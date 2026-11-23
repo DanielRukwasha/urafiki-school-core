@@ -52,7 +52,7 @@
             {% elif column == 'coefficient' %}{{ course.coefficient }}
             {% elif column == 'max_score' %}{{ course.max_score }}
             {% elif column == 'score' %}{{ grade.score if grade else '—' }}
-            {% elif column == 'weighted' %}{{ '%.2f'|format(grade.score * course.coefficient) if grade else '—' }}
+            {% elif column == 'weighted' %}{% if grade %}{% set breakdown = row.total.course_breakdown|selectattr('ligne_id', 'equalto', course.id)|first %}{{ breakdown.weighted_points }}{% else %}—{% endif %}
             {% endif %}
             </td>
           {% endfor %}</tr>
