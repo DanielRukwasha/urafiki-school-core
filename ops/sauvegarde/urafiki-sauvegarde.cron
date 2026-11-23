@@ -1,0 +1,13 @@
+# /etc/cron.d/urafiki-sauvegarde — planification des sauvegardes (invariant 12).
+# Installation et vérification : RESTAURATION.md, section « Mise en service ».
+#
+# - tous les jours à 02:30 UTC : sauvegarde chiffrée hors site + rétention 7/4/3 ;
+# - le 1er de chaque mois à 04:00 UTC : test de restauration de la dernière
+#   sauvegarde dans une base jetable, comparé au manifeste.
+# Tout échec sort en code non nul : cron l'envoie à MAILTO.
+SHELL=/bin/bash
+CRON_TZ=UTC
+MAILTO=exploitation@urafiki.org
+
+30 2 * * * urafiki set -a && . /etc/urafiki/sauvegarde.env && set +a && cd /srv/urafiki && .venv/bin/python -m ops.sauvegarde.urafiki_sauvegarde sauvegarder >> /var/log/urafiki/sauvegarde.log 2>&1 || echo "ÉCHEC sauvegarde quotidienne, voir /var/log/urafiki/sauvegarde.log"
+0 4 1 * * urafiki set -a && . /etc/urafiki/sauvegarde.env && set +a && cd /srv/urafiki && .venv/bin/python -m ops.sauvegarde.urafiki_sauvegarde tester-restauration >> /var/log/urafiki/restauration.log 2>&1 || echo "ÉCHEC test de restauration mensuel, voir /var/log/urafiki/restauration.log"

@@ -15,10 +15,12 @@ from datetime import date
 from app.extensions import db
 from app.models.academic import AcademicYear
 from app.models.institution import Institution
+from app.models.journal import SensitiveReadKind
 from app.models.platform import CalculationStrategy
 from app.models.tenant_config import TenantConfig
 from app.models.tenant_scope import TenantScopedModel
 from app.models.user import RoleEnum, User
+from app.services.journal_lectures import journaliser_lecture
 
 STANDARD_STRATEGY_KEY = "STANDARD"
 STANDARD_STRATEGY_DESCRIPTION = (
@@ -128,6 +130,11 @@ def provision_tenant(
     )
 
 
+@journaliser_lecture(
+    SensitiveReadKind.EXPORT_DONNEES,
+    ecole_id=lambda _args, _kwargs, result: result["institutions"][0]["id"],
+    resource=lambda _args, kwargs: f"export_tenant domain={kwargs.get('domain')}",
+)
 def export_tenant(*, domain: str) -> dict[str, list[dict]]:
     """Full, portable export of one tenant's data, keyed by table name.
 

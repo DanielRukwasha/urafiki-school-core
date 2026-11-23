@@ -25,8 +25,8 @@ def register_cli(app: Flask) -> None:
 
     @tenant_group.command("create")
     @click.option("--name", required=True, help="Nom complet de l'école.")
-    @click.option("--short-code", required=True, help="Code court unique (ex: IMC).")
-    @click.option("--domain", required=True, help="Domaine de résolution (ex: montcarmel.urafiki.org).")
+    @click.option("--short-code", required=True, help="Code court unique (ex: EXEMPLE).")
+    @click.option("--domain", required=True, help="Domaine de résolution (ex: ecole-exemple.urafiki.org).")
     @click.option("--direction-email", required=True)
     @click.option("--direction-first-name", required=True)
     @click.option("--direction-last-name", required=True)
