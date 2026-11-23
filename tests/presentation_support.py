@@ -77,7 +77,13 @@ def report_context(slug, count=2):
             id=index + 1,
             student=NS(full_name=f"Camille Exemple {index + 1}", matricule=f"S-{index + 1:03}"),
         )
-        total = NS(weighted_points=score * 3, weighted_possible=maximum * 3)
+        total = NS(
+            weighted_points=score * 3, weighted_possible=maximum * 3,
+            course_breakdown=tuple(
+                NS(ligne_id=course.id, weighted_points=score * course.coefficient)
+                for course in courses
+            ),
+        )
         rows.append(NS(enrollment=enrollment, entered=2, total=total, percentage=Decimal("75")))
         for course in courses:
             grades[(enrollment.id, course.id)] = NS(score=score)
