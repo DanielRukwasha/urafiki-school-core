@@ -18,8 +18,12 @@ Contrat transactionnel : chaque décorateur valide (commit) sa propre ligne
 de journal. Il ne doit donc jamais valider au passage des écritures de
 l'appelant : si la session contient des écritures en attente au moment de
 journaliser, il lève `JournalisationError` au lieu de les valider en
-silence. Une fonction décorée est une lecture ; l'appelant qui écrit
-valide ou annule ses écritures avant de lire.
+silence. Sont visées les écritures encore en session ET celles déjà
+envoyées à la base sans être validées (flush explicite, ou autoflush
+déclenché par une requête de la lecture décorée elle-même) : un flush qui
+écrit marque la transaction, la marque tombe quand la transaction racine se
+termine (commit, rollback, close). Une fonction décorée est une lecture ;
+l'appelant qui écrit valide ou annule ses écritures avant de lire.
 """
 
 from __future__ import annotations
@@ -30,6 +34,8 @@ from collections.abc import Callable
 
 from flask import has_request_context, request
 from flask_login import current_user
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 
 from app.extensions import db
 from app.models.journal import SensitiveReadKind, SensitiveReadLog
@@ -56,17 +62,37 @@ def _authenticated_user_id() -> int | None:
     return None
 
 
+_ECRITURES_FLUSHEES = "journal_lectures.ecritures_flushees"
+
+
+@event.listens_for(Session, "after_flush")
+def _marquer_ecritures_flushees(session, flush_context):
+    # A flush only runs when the session holds changes, so every flush
+    # here wrote rows that the current transaction has not committed yet.
+    types = {type(o).__name__ for o in (*session.new, *session.dirty, *session.deleted)}
+    session.info.setdefault(_ECRITURES_FLUSHEES, set()).update(types or {"?"})
+
+
+@event.listens_for(Session, "after_transaction_end")
+def _oublier_ecritures_flushees(session, transaction):
+    if transaction.parent is None:
+        session.info.pop(_ECRITURES_FLUSHEES, None)
+
+
 def _refuser_ecritures_en_attente(fonction: str) -> None:
     en_attente = [
         *db.session.new,
         *db.session.deleted,
         *(objet for objet in db.session.dirty if db.session.is_modified(objet)),
     ]
-    if en_attente:
+    flushees = db.session.info.get(_ECRITURES_FLUSHEES, set())
+    if en_attente or flushees:
+        types = sorted({type(o).__name__ for o in en_attente} | flushees)
         raise JournalisationError(
-            f"Journalisation de {fonction} : {len(en_attente)} écriture(s) de l'appelant en "
-            "attente ({}). Le journal ne les validera pas à sa place : valider ou annuler "
-            "avant la lecture.".format(", ".join(sorted({type(o).__name__ for o in en_attente})))
+            f"Journalisation de {fonction} : écriture(s) de l'appelant non validée(s) "
+            f"({len(en_attente)} en attente, {'des' if flushees else 'aucune'} déjà envoyée(s) "
+            f"à la base ; {', '.join(types)}). Le journal ne les validera pas à sa place : "
+            "valider ou annuler avant la lecture."
         )
 
 

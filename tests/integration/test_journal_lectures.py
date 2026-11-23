@@ -117,3 +117,69 @@ def test_journal_never_commits_the_callers_pending_writes(app, db, tenant_a):
         name="Écriture non validée"
     ).count() == 0
     assert _logs() == []
+
+
+def _sections(nom):
+    from app.models.academic import Section
+
+    return Section.query.execution_options(skip_tenant_filter=True).filter_by(name=nom).count()
+
+
+def _ecriture(db, tenant_a, nom):
+    from app.models.academic import Section
+
+    db.session.add(Section(ecole_id=tenant_a.id, name=nom, code=nom[:8]))
+
+
+def test_journal_never_commits_already_flushed_writes(app, db, tenant_a):
+    """Revue de suivi de #55 : une écriture déjà envoyée à la base (flush)
+    mais non validée échappe à session.new ; le journal ne doit pas la
+    valider non plus."""
+    from app.services.journal_lectures import journaliser_lecture
+
+    @journaliser_lecture(SensitiveReadKind.EXPORT_DONNEES, ecole_id=lambda *_: tenant_a.id,
+                         resource=lambda *_: "test")
+    def lecture():
+        return "donnée"
+
+    _ecriture(db, tenant_a, "Écriture flushée")
+    db.session.flush()
+    with pytest.raises(JournalisationError, match="déjà envoyée"):
+        lecture()
+    db.session.rollback()
+    assert _sections("Écriture flushée") == 0
+    assert _logs() == []
+    # La marque tombe avec la transaction : une lecture propre est journalisée.
+    assert lecture() == "donnée" and len(_logs()) == 1
+
+
+def test_journal_never_commits_writes_autoflushed_by_the_decorated_read(app, db, tenant_a):
+    """L'écriture en attente est envoyée par l'autoflush d'une requête de la
+    lecture décorée elle-même, avant que le garde ne regarde la session."""
+    from app.models.academic import Section
+    from app.services.journal_lectures import journaliser_lecture
+
+    @journaliser_lecture(SensitiveReadKind.EXPORT_DONNEES, ecole_id=lambda *_: tenant_a.id,
+                         resource=lambda *_: "test")
+    def lecture():
+        return Section.query.execution_options(skip_tenant_filter=True).count()
+
+    _ecriture(db, tenant_a, "Écriture autoflushée")
+    with pytest.raises(JournalisationError, match="déjà envoyée"):
+        lecture()
+    db.session.rollback()
+    assert _sections("Écriture autoflushée") == 0
+    assert _logs() == []
+
+
+@pytest.mark.parametrize("flush", [False, True], ids=["en-attente", "flushee"])
+def test_super_admin_journal_never_commits_the_callers_writes(super_admin, db, tenant_a, flush):
+    motif = "Ticket 42 : vérification d'un bulletin à la demande de l'école"
+    _ecriture(db, tenant_a, "Écriture avant accès super-admin")
+    if flush:
+        db.session.flush()
+    with pytest.raises(JournalisationError, match="Journalisation de"):
+        _lire_tenant(super_admin=super_admin, ecole_id=tenant_a.id, motif=motif)
+    db.session.rollback()
+    assert _sections("Écriture avant accès super-admin") == 0
+    assert TenantAccessAuditLog.query.execution_options(skip_tenant_filter=True).count() == 0
