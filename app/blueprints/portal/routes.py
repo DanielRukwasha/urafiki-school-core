@@ -90,13 +90,21 @@ def editable_column_ids_for(klass, period) -> set[int]:
     }
 
 
-def context(class_id, period_id):
+def _classe_et_periode(class_id, period_id):
+    """Access and scope checks shared by every class/period view, without
+    touching the live grid: the class and period exist in this tenant, are
+    not archived and belong to the same academic year — otherwise 404."""
     klass = db.get_or_404(SchoolClass, class_id)
     period = db.get_or_404(EvaluationPeriod, period_id)
     if klass.is_archived or klass.academic_year.is_archived or period.is_archived:
         abort(404)
     if period.academic_year_id != klass.academic_year_id:
         abort(404)
+    return klass, period
+
+
+def context(class_id, period_id):
+    klass, period = _classe_et_periode(class_id, period_id)
     try:
         courses = display_columns_for(klass, period=period)
         editable_course_ids = editable_column_ids_for(klass, period)
@@ -438,12 +446,20 @@ def _version_lue(class_id, period_id):
 def result_context(class_id, period_id):
     from app.tenant_presentation import presentation_configuration
 
-    ctx = context(class_id, period_id)
+    # Scope first (404 outside it), then the version. A published version
+    # is read from its frozen JSON alone: the live grid is loaded only for
+    # the unpublished preview, so a grid that became invalid after
+    # publication cannot block reading what was published. (Every caller is
+    # restricted to direction/secretariat, so no grid-derived teacher scope
+    # applies here.)
+    _classe_et_periode(class_id, period_id)
     version = _version_lue(class_id, period_id)
     try:
         if version is None:
+            ctx = context(class_id, period_id)
             contenu = calculer_contenu(ctx["klass"], ctx["period"], presentation_configuration())
         else:
+            ctx = {"editable_course_ids": frozenset()}
             contenu = contenu_de_version(version)
     except GrilleConfigError as error:
         abort(503, description=str(error))

@@ -214,3 +214,29 @@ def test_a_group_excluded_from_the_general_total_is_excluded_from_the_bulletin(
     assert status == 200
     assert "Religion" in html
     assert "75.00" in html and "68.89" not in html
+
+
+def test_version_1_still_renders_identically_when_the_live_grid_becomes_invalid(
+    published, client, db
+):
+    """Revue de suivi de #55 : la lecture d'une version publiée ne dépend pas
+    de la grille vivante. Supprimer un maximum requis rend la grille
+    invalide (503 pour l'aperçu), mais la V1 reste lisible, à l'identique."""
+    status, html_avant = _bulletin(client, published)
+    assert status == 200
+    results_avant = client.get(f"{published['base']}/results")
+    assert results_avant.status_code == 200
+
+    GrilleCoursLigneMaximum.query.execution_options(skip_tenant_filter=True).filter_by(
+        grille_cours_ligne_id=published["ligne"].id, periode_id=published["period"].id
+    ).delete()
+    db.session.commit()
+
+    # Contre-épreuve : la grille vivante est bien invalide.
+    assert client.get(f"{published['base']}/grid").status_code == 503
+
+    assert _bulletin(client, published) == (200, html_avant)
+    assert _bulletin(client, published, version=1) == (200, html_avant)
+    results_apres = client.get(f"{published['base']}/results")
+    assert results_apres.status_code == 200
+    assert results_apres.get_data() == results_avant.get_data()
