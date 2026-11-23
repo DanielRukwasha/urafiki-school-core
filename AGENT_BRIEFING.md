@@ -111,33 +111,40 @@ invariant sans test qui le réfute est un vœu, pas un invariant.
 
 **Règle** : aucun agent ne pousse, n'ouvre de PR, ne commente ni n'approuve
 sous le compte personnel du propriétaire. Les agents agissent sous le
-compte machine `urafiki-bot`. Tant que son jeton n'est pas disponible dans
+compte machine `DanielRukwashabot`. Tant que son jeton n'est pas disponible dans
 l'environnement de l'agent, celui-ci travaille et commite **en local
 uniquement** ; il ne pousse rien.
 
 **Création (propriétaire, une fois)**
-1. Créer le compte GitHub `urafiki-bot`, avec une adresse dédiée et
+1. Créer le compte GitHub `DanielRukwashabot`, avec une adresse dédiée et
    l'authentification à deux facteurs.
-2. L'inviter sur `urafiki-school-core` avec le rôle **Write**, jamais
-   Maintain ni Admin. La protection de `main` (`enforce_admins`) continue
-   de s'appliquer.
-3. Sous `urafiki-bot`, créer un **jeton à portée fine** (fine-grained PAT) :
-   - dépôt : `DanielRukwasha/urafiki-school-core` **uniquement** ;
-   - permissions : Contents lecture/écriture, Pull requests
-     lecture/écriture, Issues lecture/écriture, Metadata lecture,
-     Actions lecture, Checks lecture ;
-   - **Workflows** : non accordé par défaut. Un jeton distinct, à durée
-     courte, est émis seulement pour une PR qui modifie `.github/workflows/` ;
-   - aucune permission d'administration, de secrets, de webhooks ni de
-     paramètres du dépôt ;
-   - expiration : **90 jours au plus**.
-4. Déposer le jeton dans l'environnement de l'agent (gestionnaire de
-   secrets ou trousseau du système, exporté en `GH_TOKEN`). **Jamais** dans
-   le dépôt, un fichier suivi, un commit, un journal, un commentaire ni une
-   sortie de commande.
+2. L'inviter sur `urafiki-school-core` comme collaborateur avec le rôle
+   **Write**, jamais Maintain ni Admin. La protection de `main`
+   (`enforce_admins`) continue de s'appliquer.
+3. Sous `DanielRukwashabot`, créer un **jeton classique** (classic PAT) avec
+   les portées `repo` et `workflow`, et rien d'autre (ni `admin:*`, ni
+   `delete_repo`, ni `user`) ; expiration : **90 jours au plus**.
+   - Pourquoi pas un jeton à portée fine : sur un dépôt personnel, un jeton
+     à portée fine ne peut cibler que les dépôts dont son titulaire est
+     propriétaire ; il ne peut pas exercer l'accès collaborateur du compte
+     machine sur `DanielRukwasha/urafiki-school-core`.
+   - Conséquence : la portée `repo` couvre tous les dépôts auxquels le
+     compte a accès. Le compte machine n'est donc invité sur **aucun autre**
+     dépôt ; c'est son rôle Write sur ce seul dépôt qui borne le jeton.
+   - `workflow` est requis pour pousser une modification de
+     `.github/workflows/` ; un jeton classique ne permet pas de l'isoler
+     dans un jeton distinct comme le ferait une permission à portée fine.
+4. Déposer le jeton dans l'environnement utilisateur de l'agent
+   (gestionnaire de secrets ou trousseau du système, exporté en
+   `GH_TOKEN`). **Jamais** dans le dépôt, un fichier suivi, un commit, un
+   journal, un commentaire ni une sortie de commande.
+5. Pousser via `gh` pour que `git` utilise ce jeton et non les identifiants
+   personnels mis en cache :
+   `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push`.
 
-**Identité des commits** : `git config user.name "urafiki-bot"` et
-`user.email` sur l'adresse *noreply* GitHub du compte. Le rôle de l'agent
+**Identité des commits** : `git config user.name "DanielRukwashabot"` et
+`user.email` sur l'adresse *noreply* GitHub du compte
+(`360031841+DanielRukwashabot@users.noreply.github.com`). Le rôle de l'agent
 (Backend ou Frontend) figure dans le message de commit et dans la PR.
 
 **Rotation**
@@ -150,14 +157,14 @@ uniquement** ; il ne pousse rien.
   l'historique est nettoyé ; l'incident est publié dans [SYNC].
 
 **Approbations** : la protection de `main` exige l'approbation d'un compte
-autre que l'auteur. Si les deux agents publient sous `urafiki-bot`, ils
+autre que l'auteur. Si les deux agents publient sous `DanielRukwashabot`, ils
 restent le même compte et ne peuvent pas s'approuver mutuellement : il faut
-soit un compte machine par agent (`urafiki-bot-backend`,
-`urafiki-bot-frontend`), soit une approbation humaine du propriétaire.
+soit un compte machine par agent (par exemple
+`DanielRukwashabot` pour le Backend et un second pour le Frontend), soit une approbation humaine du propriétaire.
 Décision attendue du propriétaire (#66).
 
-**Contrôle en début de session** : `gh auth status` doit indiquer
-`urafiki-bot` comme compte actif. Sinon, travail local uniquement, et
+**Contrôle en début de session** : `gh api user --jq .login` doit
+renvoyer `DanielRukwashabot`. Sinon, travail local uniquement, et
 écart publié dans [SYNC].
 
 ## 7. Tests : un test qui diffère entre local et CI ne prouve rien
