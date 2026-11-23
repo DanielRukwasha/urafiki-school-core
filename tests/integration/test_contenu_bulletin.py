@@ -7,6 +7,7 @@ explicitement."""
 
 import hashlib
 import json
+import re
 from decimal import Decimal
 
 import pytest
@@ -70,6 +71,10 @@ def _bulletin(client, published, **query):
     return response.status_code, response.get_data(as_text=True)
 
 
+def _affiche_pourcentage(texte, valeur):
+    return re.search(rf"(?<![\d,]){re.escape(valeur)}\s*%", texte) is not None
+
+
 def test_every_published_version_freezes_its_content_with_a_matching_fingerprint(published):
     (v1,) = _versions()
     assert v1.contenu and len(v1.empreinte) == 64
@@ -99,7 +104,7 @@ def test_version_1_is_unchanged_after_grid_label_grade_and_school_changes(publis
 
     status, html_apres = _bulletin(client, published)
     assert status == 200
-    assert "75.00" in html_apres
+    assert _affiche_pourcentage(html_apres, "75")
     assert "Mathematiques" in html_apres
     assert "Algebre renommee" not in html_apres
     assert "Renommee" not in html_apres
@@ -123,10 +128,10 @@ def test_correction_freezes_a_distinct_version_2_and_each_version_stays_readable
     assert v2.numero == 2 and v2.motif == MOTIF and v2.corrige_version_id == v1.id
     assert v2.empreinte != v1.empreinte
 
-    assert "90.00" in _bulletin(client, published)[1]
-    assert "90.00" in _bulletin(client, published, version=2)[1]
+    assert _affiche_pourcentage(_bulletin(client, published)[1], "90")
+    assert _affiche_pourcentage(_bulletin(client, published, version=2)[1], "90")
     status, html_v1 = _bulletin(client, published, version=1)
-    assert status == 200 and "75.00" in html_v1 and "90.00" not in html_v1
+    assert status == 200 and _affiche_pourcentage(html_v1, "75") and not _affiche_pourcentage(html_v1, "90")
 
 
 def test_correction_identical_to_the_published_version_is_refused(published, client):
@@ -146,7 +151,7 @@ def test_reading_a_version_that_does_not_exist_is_a_404(published, client, versi
 def test_an_unpublished_period_has_no_version_to_read(classe, client):
     assert _bulletin(client, classe, version=1)[0] == 404
     status, html = _bulletin(client, classe)
-    assert status == 200 and "75.00" in html
+    assert status == 200 and _affiche_pourcentage(html, "75")
 
 
 def test_concurrent_correction_is_a_controlled_409_not_a_500(published, client, db):
@@ -213,7 +218,7 @@ def test_a_group_excluded_from_the_general_total_is_excluded_from_the_bulletin(
     status, html = _bulletin(client, classe)
     assert status == 200
     assert "Religion" in html
-    assert "75.00" in html and "68.89" not in html
+    assert _affiche_pourcentage(html, "75") and not _affiche_pourcentage(html, "68,89")
 
 
 def test_version_1_still_renders_identically_when_the_live_grid_becomes_invalid(
@@ -252,7 +257,6 @@ def _corriger_en_v2(published, client, db):
 
 def _lien_pdf(html):
     import html as html_lib
-    import re
 
     (href,) = re.findall(r'href="([^"]*format=pdf[^"]*)"', html)
     return html_lib.unescape(href)
@@ -278,9 +282,9 @@ def test_downloading_from_version_1_after_version_2_yields_version_1_pdf(publish
     assert response.status_code == 200
     assert response.headers["Content-Type"] == "application/pdf"
     texte = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(response.data)).pages)
-    assert "75.00" in texte and "90.00" not in texte
+    assert _affiche_pourcentage(texte, "75") and not _affiche_pourcentage(texte, "90")
 
     # Contre-épreuve : sans version explicite, le PDF est bien celui de la V2.
     dernier = client.get(_lien_pdf(_bulletin(client, published)[1]))
     texte_v2 = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(dernier.data)).pages)
-    assert "90.00" in texte_v2
+    assert _affiche_pourcentage(texte_v2, "90")
