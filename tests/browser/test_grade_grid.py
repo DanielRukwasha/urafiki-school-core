@@ -117,9 +117,12 @@ def browser_portal(
             page.wait_for_url("**/portal/")
             path = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
             page.goto(base + path + "/grid")
-            page.wait_for_function(
-                "document.querySelector('.grade-input') && !document.querySelector('.grade-input').disabled"
-            )
+            try:
+                page.wait_for_function(
+                    "document.querySelector('.grade-input') && !document.querySelector('.grade-input').disabled"
+                )
+            except Exception as error:
+                raise AssertionError(f"Grid initialization failed; browser errors: {errors}") from error
             yield page, context, base, path
             context.close()
             browser.close()

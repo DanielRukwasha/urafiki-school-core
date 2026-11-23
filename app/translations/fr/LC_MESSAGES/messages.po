@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: urafiki-school-core VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-03 11:49-0400\n"
+"POT-Creation-Date: 2026-10-04 17:16-0400\n"
 "PO-Revision-Date: 2026-10-03 11:49-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -19,6 +19,787 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-msgid "Veuillez vous connecter pour accéder à cette page."
+msgid " · Hors connexion"
+msgstr " · Hors connexion"
+
+#, python-format
+msgid "%(action)s — cette étape est irréversible. Continuer ?"
+msgstr "%(action)s — cette étape est irréversible. Continuer ?"
+
+#, python-format
+msgid "%(class_name)s — Consolidation"
+msgstr "%(class_name)s — Consolidation"
+
+#, python-format
+msgid "%(class_name)s — Résultats"
+msgstr "%(class_name)s — Résultats"
+
+#, python-format
+msgid "%(class_name)s — Saisie des cotes"
+msgstr "%(class_name)s — Saisie des cotes"
+
+#, python-format
+msgid "%(count)s cours"
+msgstr "%(count)s cours"
+
+#, python-format
+msgid "%(document)s · Aperçu"
+msgstr "%(document)s · Aperçu"
+
+#, python-format
+msgid "%(document)s · PDF"
+msgstr "%(document)s · PDF"
+
+#, python-format
+msgid "%(num)s élève"
+msgid_plural "%(num)s élèves"
+msgstr[0] "%(num)s élève"
+msgstr[1] "%(num)s élèves"
+
+#, python-format
+msgid "%(num)s événement"
+msgid_plural "%(num)s événements"
+msgstr[0] "%(num)s événement"
+msgstr[1] "%(num)s événements"
+
+#, python-format
+msgid "%(student)s · %(course)s · Sur %(maximum)s"
+msgstr "%(student)s · %(course)s · Sur %(maximum)s"
+
+#, python-format
+msgid "%(students)s · %(courses)s · %(period)s"
+msgstr "%(students)s · %(courses)s · %(period)s"
+
+#, python-format
+msgid "%(value)s %%"
+msgstr "%(value)s %%"
+
+#, python-format
+msgid "%(year)s · %(period)s"
+msgstr "%(year)s · %(period)s"
+
+msgid "(en cours)"
+msgstr "(en cours)"
+
+msgid "403 — Accès refusé"
+msgstr "403 — Accès refusé"
+
+msgid "404 — Page introuvable"
+msgstr "404 — Page introuvable"
+
+msgid "Accès refusé"
+msgstr "Accès refusé"
+
+msgid "Accédez à votre espace scolaire."
+msgstr "Accédez à votre espace scolaire."
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Activez JavaScript pour saisir et sauvegarder les cotes."
+msgstr "Activez JavaScript pour saisir et sauvegarder les cotes."
+
+msgid "Administration"
+msgstr "Administration"
+
+msgid "Afficher le logo configuré"
+msgstr "Afficher le logo configuré"
+
+msgid "Ajouter une décision manuelle"
+msgstr "Ajouter une décision manuelle"
+
+msgid "Alignement de l’en-tête"
+msgstr "Alignement de l’en-tête"
+
+msgid "Aller au contenu"
+msgstr "Aller au contenu"
+
+msgid "Ancienne valeur"
+msgstr "Ancienne valeur"
+
+msgid "Années académiques"
+msgstr "Années académiques"
+
+msgid "Aperçu du bulletin"
+msgstr "Aperçu du bulletin"
+
+msgid "Aperçu non disponible"
+msgstr "Aperçu non disponible"
+
+msgid "Aperçu non officiel"
+msgstr "Aperçu non officiel"
+
+msgid "Aperçu non officiel du bulletin"
+msgstr "Aperçu non officiel du bulletin"
+
+msgid "Appliquer"
+msgstr "Appliquer"
+
+msgid "Attribuer le cours"
+msgstr "Attribuer le cours"
+
+msgid "Attribution des cours"
+msgstr "Attribution des cours"
+
+msgid "Attributions actives"
+msgstr "Attributions actives"
+
+msgid "Au"
+msgstr "Au"
+
+msgid "Aucun blocage signalé par le serveur."
+msgstr "Aucun blocage signalé par le serveur."
+
+msgid "Aucun cours transmis."
+msgstr "Aucun cours transmis."
+
+msgid "Aucun motif signalé"
+msgstr "Aucun motif signalé"
+
+msgid "Aucun élève inscrit dans cette classe."
+msgstr "Aucun élève inscrit dans cette classe."
+
+msgid "Aucun élève inscrit."
+msgstr "Aucun élève inscrit."
+
+msgid "Aucun événement."
+msgstr "Aucun événement."
+
+msgid "Aucune"
+msgstr "Aucune"
+
+msgid "Aucune attribution active."
+msgstr "Aucune attribution active."
+
+msgid "Aucune classe accessible. Contactez la direction pour vérifier vos attributions."
+msgstr "Aucune classe accessible. Contactez la direction pour vérifier vos attributions."
+
+msgid "Aucune classe."
+msgstr "Aucune classe."
+
+msgid "Aucune distribution transmise."
+msgstr "Aucune distribution transmise."
+
+msgid "Aucune décision transmise."
+msgstr "Aucune décision transmise."
+
+msgid "Aucune période disponible."
+msgstr "Aucune période disponible."
+
+msgid "Auteur"
+msgstr "Auteur"
+
+msgid "Base serveur"
+msgstr "Base serveur"
+
+#, python-format
+msgid "Bienvenue, %(name)s"
+msgstr "Bienvenue, %(name)s"
+
+msgid "Bienvenue. Choisissez une classe et une période pour poursuivre votre travail."
+msgstr "Bienvenue. Choisissez une classe et une période pour poursuivre votre travail."
+
+msgid "Blocs de signature (un par ligne, quatre maximum)"
+msgstr "Blocs de signature (un par ligne, quatre maximum)"
+
+msgid "Brouillon en mémoire"
+msgstr "Brouillon en mémoire"
+
+msgid "Brouillon local"
+msgstr "Brouillon local"
+
+msgid "Brouillon local restauré"
+msgstr "Brouillon local restauré"
+
+msgid "Brouillon à vérifier"
+msgstr "Brouillon à vérifier"
+
+msgid "Bulletins"
+msgstr "Bulletins"
+
+msgid "Cellule"
+msgstr "Cellule"
+
+msgid "Centré"
+msgstr "Centré"
+
+msgid "Cette grille est ouverte dans un autre onglet. Fermez cet onglet puis rechargez ici."
+msgstr "Cette grille est ouverte dans un autre onglet. Fermez cet onglet puis rechargez ici."
+
+msgid "Choisir"
+msgstr "Choisir"
+
+msgid "Choisir un enseignant"
+msgstr "Choisir un enseignant"
+
+msgid "Choisir une classe"
+msgstr "Choisir une classe"
+
+msgid "Choisir une ligne"
+msgstr "Choisir une ligne"
+
+msgid "Choisissez l’ordre. Le cours et la cote restent obligatoires."
+msgstr "Choisissez l’ordre. Le cours et la cote restent obligatoires."
+
+msgid "Classe"
+msgstr "Classe"
+
+msgid "Classes accessibles"
+msgstr "Classes accessibles"
+
+msgid "Classes et périodes"
+msgstr "Classes et périodes"
+
+#, python-format
+msgid "Colonne %(number)s"
+msgstr "Colonne %(number)s"
+
+msgid "Colonnes du bulletin"
+msgstr "Colonnes du bulletin"
+
+msgid "Complet"
+msgstr "Complet"
+
+msgid "Configurer et prévisualiser le bulletin"
+msgstr "Configurer et prévisualiser le bulletin"
+
+msgid "Confirmation manquante. Nouvel essai…"
+msgstr "Confirmation manquante. Nouvel essai…"
+
+msgid "Connexion"
+msgstr "Connexion"
+
+msgid "Connexion interrompue. Brouillon conservé."
+msgstr "Connexion interrompue. Brouillon conservé."
+
+msgid "Consolidation"
+msgstr "Consolidation"
+
+msgid "Consolidation bloquée"
+msgstr "Consolidation bloquée"
+
+#, python-format
+msgid "Consolidation · %(class_name)s"
+msgstr "Consolidation · %(class_name)s"
+
+msgid "Corrigez le formulaire et relancez l’aperçu. Aucun document n’a été publié."
+msgstr "Corrigez le formulaire et relancez l’aperçu. Aucun document n’a été publié."
+
+msgid "Cote"
+msgstr "Cote"
+
+msgid "Cote serveur restaurée"
+msgstr "Cote serveur restaurée"
+
+msgid "Cote verrouillée. Exportez ou abandonnez le brouillon."
+msgstr "Cote verrouillée. Exportez ou abandonnez le brouillon."
+
+#, python-format
+msgid "Cotes en attente : %(count)s%(connection)s"
+msgstr "Cotes en attente : %(count)s%(connection)s"
+
+#, python-format
+msgid "Cotes en cours d’enregistrement : %(count)s"
+msgstr "Cotes en cours d’enregistrement : %(count)s"
+
+msgid "Cotes saisies"
+msgstr "Cotes saisies"
+
+msgid "Cours"
+msgstr "Cours"
+
+msgid "Cours attribués au périmètre"
+msgstr "Cours attribués au périmètre"
+
+msgid "Date"
+msgstr "Date"
+
+msgid "Date de publication"
+msgstr "Date de publication"
+
+msgid "Direction"
+msgstr "Direction"
+
+msgid "Distribution calculée par le serveur"
+msgstr "Distribution calculée par le serveur"
+
+msgid "Distribution des résultats"
+msgstr "Distribution des résultats"
+
+msgid "Du"
+msgstr "Du"
+
+msgid "Décision automatique"
+msgstr "Décision automatique"
+
+msgid "Décision manuelle"
+msgstr "Décision manuelle"
+
+msgid "Décisions de délibération"
+msgstr "Décisions de délibération"
+
+msgid "Définir le titulaire"
+msgstr "Définir le titulaire"
+
+msgid "Définissez les cours accessibles à chaque enseignant."
+msgstr "Définissez les cours accessibles à chaque enseignant."
+
+#, python-format
+msgid "Délibération · %(class_name)s"
+msgstr "Délibération · %(class_name)s"
+
+#, python-format
+msgid "Délibération — %(class_name)s"
+msgstr "Délibération — %(class_name)s"
+
+msgid "ESPACE SCOLAIRE"
+msgstr "ESPACE SCOLAIRE"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Encodage par cours"
+msgstr "Encodage par cours"
+
+msgid "English"
+msgstr "English"
+
+msgid "Enregistrement…"
+msgstr "Enregistrement…"
+
+msgid "Enregistrer la décision manuelle"
+msgstr "Enregistrer la décision manuelle"
+
+msgid "Enregistré"
+msgstr "Enregistré"
+
+msgid "Enregistré sur le serveur"
+msgstr "Enregistré sur le serveur"
+
+msgid "Enseignant"
+msgstr "Enseignant"
+
+msgid "Expliquez la correction pour le dossier d’audit."
+msgstr "Expliquez la correction pour le dossier d’audit."
+
+msgid "Expliquez la décision pour le dossier d’audit."
+msgstr "Expliquez la décision pour le dossier d’audit."
+
+msgid "Exporter les brouillons"
+msgstr "Exporter les brouillons"
+
+msgid "Filtrer"
+msgstr "Filtrer"
+
+msgid "Filtrer par décision"
+msgstr "Filtrer par décision"
+
+msgid "Format A4"
+msgstr "Format A4"
+
+msgid "Français"
+msgstr "Français"
+
+msgid "Gabarit de bulletin"
+msgstr "Gabarit de bulletin"
+
+msgid "Grille des cotes défilante"
+msgstr "Grille des cotes défilante"
+
+msgid "Grille en lecture seule. Les cotes ne peuvent pas être modifiées."
+msgstr "Grille en lecture seule. Les cotes ne peuvent pas être modifiées."
+
+msgid "Génération PDF indisponible"
+msgstr "Génération PDF indisponible"
+
+msgid "Historique des versions publiées"
+msgstr "Historique des versions publiées"
+
+msgid "Initialisation de la sauvegarde…"
+msgstr "Initialisation de la sauvegarde…"
+
+msgid "Journal d’audit"
+msgstr "Journal d’audit"
+
+msgid "La décision automatique reste visible même lorsqu’une direction ajoute une décision manuelle."
+msgstr "La décision automatique reste visible même lorsqu’une direction ajoute une décision manuelle."
+
+msgid ""
+"La décision automatique restera affichée dans la délibération. Cette saisie ajoute une décision "
+"manuelle et son motif."
 msgstr ""
+"La décision automatique restera affichée dans la délibération. Cette saisie ajoute une décision "
+"manuelle et son motif."
+
+msgid "La publication de cette correction est irréversible. Continuer ?"
+msgstr "La publication de cette correction est irréversible. Continuer ?"
+
+msgid "La saisie requiert un navigateur moderne et une connexion HTTPS."
+msgstr "La saisie requiert un navigateur moderne et une connexion HTTPS."
+
+msgid ""
+"La synchronisation ne peut pas démarrer. Rechargez la page ; exportez vos brouillons si "
+"nécessaire."
+msgstr ""
+"La synchronisation ne peut pas démarrer. Rechargez la page ; exportez vos brouillons si "
+"nécessaire."
+
+msgid "Langue"
+msgstr "Langue"
+
+msgid ""
+"Le bulletin publié reste en lecture seule. Cet acte crée une nouvelle version officielle et ne "
+"modifie pas la précédente."
+msgstr ""
+"Le bulletin publié reste en lecture seule. Cet acte crée une nouvelle version officielle et ne "
+"modifie pas la précédente."
+
+msgid ""
+"Le service PDF n’est pas disponible sur ce serveur. L’aperçu reste accessible et imprimable "
+"depuis votre navigateur."
+msgstr ""
+"Le service PDF n’est pas disponible sur ce serveur. L’aperçu reste accessible et imprimable "
+"depuis votre navigateur."
+
+msgid ""
+"Le titulariat est propre à chaque classe : un enseignant peut être titulaire d'une classe et "
+"simple attributaire dans une autre."
+msgstr ""
+"Le titulariat est propre à chaque classe : un enseignant peut être titulaire d'une classe et "
+"simple attributaire dans une autre."
+
+msgid "Lecture seule"
+msgstr "Lecture seule"
+
+msgid ""
+"Les cotes manquantes sont exclues du calcul. Un classement partiel ne constitue pas une décision "
+"de passage annuel."
+msgstr ""
+"Les cotes manquantes sont exclues du calcul. Un classement partiel ne constitue pas une décision "
+"de passage annuel."
+
+msgid "Les cotes sont enregistrées automatiquement. Utilisez Tab, Entrée ou les flèches pour naviguer."
+msgstr "Les cotes sont enregistrées automatiquement. Utilisez Tab, Entrée ou les flèches pour naviguer."
+
+msgid "Les indicateurs et décisions affichés viennent du serveur."
+msgstr "Les indicateurs et décisions affichés viennent du serveur."
+
+msgid "Les modifications de cet écran ne sont pas enregistrées dans la configuration de l’établissement."
+msgstr "Les modifications de cet écran ne sont pas enregistrées dans la configuration de l’établissement."
+
+msgid "Les modifications sont consultables et paginées par le serveur."
+msgstr "Les modifications sont consultables et paginées par le serveur."
+
+msgid "Libellés et mentions"
+msgstr "Libellés et mentions"
+
+msgid "Ligne de grille et classe"
+msgstr "Ligne de grille et classe"
+
+msgid "Lignes d’en-tête (quatre maximum)"
+msgstr "Lignes d’en-tête (quatre maximum)"
+
+msgid "Mentions légales"
+msgstr "Mentions légales"
+
+msgid "Mot de passe"
+msgstr "Mot de passe"
+
+msgid "Motif"
+msgstr "Motif"
+
+msgid "Motif obligatoire"
+msgstr "Motif obligatoire"
+
+msgid "Motif obligatoire de la correction"
+msgstr "Motif obligatoire de la correction"
+
+msgid "Motifs"
+msgstr "Motifs"
+
+msgid "Moyenne de classe"
+msgstr "Moyenne de classe"
+
+msgid "Navigation principale"
+msgstr "Navigation principale"
+
+msgid "Non affichée"
+msgstr "Non affichée"
+
+msgid "Non saisie"
+msgstr "Non saisie"
+
+msgid "Non évalué"
+msgstr "Non évalué"
+
+msgid "Notes"
+msgstr "Notes"
+
+msgid "Nouvelle attribution"
+msgstr "Nouvelle attribution"
+
+msgid "Nouvelle modification en attente"
+msgstr "Nouvelle modification en attente"
+
+#, python-format
+msgid "Nouvelle tentative dans %(num)s seconde."
+msgid_plural "Nouvelle tentative dans %(num)s secondes."
+msgstr[0] "Nouvelle tentative dans %(num)s seconde."
+msgstr[1] "Nouvelle tentative dans %(num)s secondes."
+
+msgid "Nouvelle valeur"
+msgstr "Nouvelle valeur"
+
+msgid "Ouvrir la délibération"
+msgstr "Ouvrir la délibération"
+
+msgid "Ouvrir l’aperçu imprimable"
+msgstr "Ouvrir l’aperçu imprimable"
+
+msgid "PDF indisponible"
+msgstr "PDF indisponible"
+
+msgid "Page introuvable"
+msgstr "Page introuvable"
+
+msgid "Pagination"
+msgstr "Pagination"
+
+msgid "Palmarès"
+msgstr "Palmarès"
+
+msgid "Paysage"
+msgstr "Paysage"
+
+msgid "Plateforme de gestion scolaire"
+msgstr "Plateforme de gestion scolaire"
+
+msgid "Portail scolaire"
+msgstr "Portail scolaire"
+
+msgid "Portrait"
+msgstr "Portrait"
+
+msgid "Pourcentage"
+msgstr "Pourcentage"
+
+msgid "Première publication"
+msgstr "Première publication"
+
+msgid "Provisoire"
+msgstr "Provisoire"
+
+msgid "Présentation"
+msgstr "Présentation"
+
+msgid "Prévisualiser sans publier"
+msgstr "Prévisualiser sans publier"
+
+msgid "Publier la nouvelle version"
+msgstr "Publier la nouvelle version"
+
+msgid "Publier une correction motivée"
+msgstr "Publier une correction motivée"
+
+msgid "PÉDAGOGIE"
+msgstr "PÉDAGOGIE"
+
+msgid "Période"
+msgstr "Période"
+
+msgid "Rang"
+msgstr "Rang"
+
+msgid "Rechargez la page après reconnexion pour reprendre les brouillons."
+msgstr "Rechargez la page après reconnexion pour reprendre les brouillons."
+
+msgid "Reprendre la cote serveur"
+msgstr "Reprendre la cote serveur"
+
+msgid "Réessayer la synchronisation"
+msgstr "Réessayer la synchronisation"
+
+msgid "Résultat"
+msgstr "Résultat"
+
+msgid "Résultats"
+msgstr "Résultats"
+
+#, python-format
+msgid "Résultats · %(class_name)s"
+msgstr "Résultats · %(class_name)s"
+
+#, python-format
+msgid "Rôle : %(role)s"
+msgstr "Rôle : %(role)s"
+
+#, python-format
+msgid "Saisie · %(class_name)s"
+msgstr "Saisie · %(class_name)s"
+
+msgid "Saisir les cotes"
+msgstr "Saisir les cotes"
+
+msgid "Se connecter"
+msgstr "Se connecter"
+
+msgid "Se déconnecter"
+msgstr "Se déconnecter"
+
+msgid "Se souvenir de moi"
+msgstr "Se souvenir de moi"
+
+msgid "Secrétariat"
+msgstr "Secrétariat"
+
+msgid ""
+"Session ou requête refusée. Reconnectez-vous puis rechargez cette page ; vos brouillons sont "
+"conservés."
+msgstr ""
+"Session ou requête refusée. Reconnectez-vous puis rechargez cette page ; vos brouillons sont "
+"conservés."
+
+msgid ""
+"Stockage local indisponible. Gardez cette page ouverte et exportez vos brouillons avant de "
+"quitter."
+msgstr ""
+"Stockage local indisponible. Gardez cette page ouverte et exportez vos brouillons avant de "
+"quitter."
+
+msgid "Super-administration"
+msgstr "Super-administration"
+
+#, python-format
+msgid "Sur %(maximum)s · Coef. %(coefficient)s"
+msgstr "Sur %(maximum)s · Coef. %(coefficient)s"
+
+msgid "Synthèse de la classe"
+msgstr "Synthèse de la classe"
+
+msgid "Synthèse de période pour préparer la délibération. Les résultats incomplets restent provisoires."
+msgstr "Synthèse de période pour préparer la délibération. Les résultats incomplets restent provisoires."
+
+msgid "Tableau de bord"
+msgstr "Tableau de bord"
+
+msgid "Taille du texte (points)"
+msgstr "Taille du texte (points)"
+
+msgid "Taux d’encodage"
+msgstr "Taux d’encodage"
+
+msgid "Taux fourni"
+msgstr "Taux fourni"
+
+msgid "Titulaire"
+msgstr "Titulaire"
+
+msgid "Titulaire de classe"
+msgstr "Titulaire de classe"
+
+msgid "Titulaires actuels"
+msgstr "Titulaires actuels"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Total pondéré"
+msgstr "Total pondéré"
+
+msgid "Toutes"
+msgstr "Toutes"
+
+msgid "Toutes les cotes sont enregistrées"
+msgstr "Toutes les cotes sont enregistrées"
+
+msgid "Trier"
+msgstr "Trier"
+
+msgid ""
+"Une cote vide est une note manquante, distincte de zéro. Les cotes validées sont verrouillées. "
+"Les brouillons restent sur cet appareil jusqu’à confirmation du serveur."
+msgstr ""
+"Une cote vide est une note manquante, distincte de zéro. Les cotes validées sont verrouillées. "
+"Les brouillons restent sur cet appareil jusqu’à confirmation du serveur."
+
+msgid ""
+"Une publication est irréversible. Chaque correction crée une nouvelle version ; les versions "
+"précédentes restent conservées."
+msgstr ""
+"Une publication est irréversible. Chaque correction crée une nouvelle version ; les versions "
+"précédentes restent conservées."
+
+msgid "Utilisateur"
+msgstr "Utilisateur"
+
+msgid "Utilisateurs"
+msgstr "Utilisateurs"
+
+msgid "VUE D’ENSEMBLE"
+msgstr "VUE D’ENSEMBLE"
+
+msgid "Verrouillée"
+msgstr "Verrouillée"
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Version publiée"
+msgstr "Version publiée"
+
+msgid "Versions, motifs et auteurs"
+msgstr "Versions, motifs et auteurs"
+
+msgid "Veuillez vous connecter pour accéder à cette page."
+msgstr "Veuillez vous connecter pour accéder à cette page."
+
+msgid "Votre rôle ne permet pas d'accéder à cette page."
+msgstr "Votre rôle ne permet pas d'accéder à cette page."
+
+msgid "Vérifiez la présentation avant publication. Cet aperçu ne crée aucun document officiel."
+msgstr "Vérifiez la présentation avant publication. Cet aperçu ne crée aucun document officiel."
+
+#, python-format
+msgid "· Responsable : %(owner)s"
+msgstr "· Responsable : %(owner)s"
+
+msgid "À gauche"
+msgstr "À gauche"
+
+msgid "Élève"
+msgstr "Élève"
+
+msgid "Élèves sans cote"
+msgstr "Élèves sans cote"
+
+msgid "Étape suivante"
+msgstr "Étape suivante"
+
+msgid "État"
+msgstr "État"
+
+msgid "État des notes par cours"
+msgstr "État des notes par cours"
+
+#, python-format
+msgid "— titulaire actuel : %(name)s"
+msgstr "— titulaire actuel : %(name)s"
+
+msgid "← Classes et périodes"
+msgstr "← Classes et périodes"
+
+msgid "← Consolidation"
+msgstr "← Consolidation"
+
+msgid "← Résultats"
+msgstr "← Résultats"
+
+#~ msgid "' + String(value).replace(/^[=+@-]/, "
+#~ msgstr "' + String(value).replace(/^[=+@-]/, "
+
+#~ msgid "[data-sync-results] [data-key]"
+#~ msgstr "[data-sync-results] [data-key]"
+
+#~ msgid "use strict"
+#~ msgstr ""
 

@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from html.parser import HTMLParser
 from pathlib import Path
 
 from jinja2 import Environment, nodes
@@ -42,6 +43,8 @@ def test_no_fixture_school_course_or_level_names_in_interface():
             if path.is_file() and path.suffix in {".html", ".css", ".js", ".svg", ".json"}:
                 source = normalized(path.read_text(encoding="utf-8-sig"))
                 for identity in identities:
+                    if len(normalized(identity)) < 3:
+                        continue  # Single-character fixture codes are not establishment identities.
                     assert not re.search(r"(?<!\w)" + re.escape(normalized(identity)) + r"(?!\w)", source), (path, identity)
 
 
@@ -49,6 +52,10 @@ def test_no_business_arithmetic_in_templates():
     env = Environment()
     for path in (ROOT / "app/templates").rglob("*.html"):
         tree = env.parse(path.read_text())
+        for call in tree.find_all(nodes.Call):
+            if isinstance(call.node, nodes.Name) and call.node.name in {"heading", "empty"}:
+                for argument in call.args:
+                    assert not isinstance(argument, nodes.Const), (path, call.lineno)
         for operation in tree.find_all(nodes.BinExpr):
             attributes = {item.attr for item in operation.find_all(nodes.Getattr)}
             assert not attributes.intersection({"score", "coefficient", "weighted_points", "weighted_possible", "percentage", "rank"}), (path, operation.lineno)
@@ -71,7 +78,47 @@ def test_two_deliberately_different_tenant_palettes_have_aa_contrast(tmp_path):
 
 
 def test_bootstrap_is_local_and_matches_official_integrity():
-    content = (ROOT / "app/static/vendor/bootstrap-5.3.8.min.css").read_bytes()
+    content = (ROOT / "app/static/vendor/bootstrap-5.3.8.min.css").read_bytes().replace(b"\r\n", b"\n")
     assert base64.b64encode(hashlib.sha384(content).digest()).decode() == "sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
     assert "vendor/bootstrap-5.3.8.min.css" in (ROOT / "app/templates/base.html").read_text()
 
+
+
+class DisplayTextParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.raw = False
+        self.literals = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"script", "style"}:
+            self.raw = True
+        for key, value in attrs:
+            if key in {"title", "alt", "aria-label", "placeholder"} and value:
+                if re.search(r"[A-Za-zÀ-ÿ]", value):
+                    self.literals.append(value)
+
+    def handle_endtag(self, tag):
+        if tag in {"script", "style"}:
+            self.raw = False
+
+    def handle_data(self, data):
+        if not self.raw and re.search(r"[A-Za-zÀ-ÿ]", data):
+            self.literals.append(data.strip())
+
+
+def test_no_unmarked_visible_template_literals():
+    for path in (ROOT / "app/templates").rglob("*.html"):
+        source = path.read_text(encoding="utf-8-sig")
+        # Remove complete expressions before parsing attributes containing quotes.
+        source = re.sub(r"{{.*?}}|{%.*?%}|{#.*?#}", "", source, flags=re.S)
+        parser = DisplayTextParser()
+        parser.feed(source)
+        assert not parser.literals, (path, parser.literals)
+
+
+def test_browser_status_text_is_supplied_by_server_translation():
+    source = (ROOT / "app/static/js/grade-grid.js").read_text(encoding="utf-8-sig")
+    assert not re.search(r"\.textContent\s*=\s*[\"']", source)
+    assert 'document.getElementById("grade-grid-messages")' in source
+    assert not re.search(r"score\s*[*+/]|coefficient\s*[*+/]|percentage\s*=|rank\s*=", source)

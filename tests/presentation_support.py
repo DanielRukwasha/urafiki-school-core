@@ -41,7 +41,7 @@ def _seed_example_tenants():
             name=branding["display_name"],
             short_code=slug.upper(),
             domain=f"{slug}.localhost",
-            locale=branding["locale"],
+            locale="fr",  # Portal language; the independently configured report can be English.
         )
         db.session.add(institution)
         db.session.commit()
