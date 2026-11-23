@@ -384,8 +384,8 @@ def test_audit_log_merges_grade_and_deliberation_events_with_filters(
     assert "2 événements".encode() in all_entries
 
     only_overrides = client.get("/portal/audit?action=MANUAL_OVERRIDE").data
-    assert "1 événements".encode() in only_overrides
+    assert "1 événement".encode() in only_overrides
     assert b"D\xc3\xa9cision manuelle" in only_overrides
 
     no_such_student = client.get("/portal/audit?student=Personne-Inexistante").data
-    assert "0 événements".encode() in no_such_student
+    assert "0 événement".encode() in no_such_student

@@ -1,24 +1,53 @@
 {% extends "base.html" %}{% from "components/macros.html" import heading %}
-{% block title %}Saisie · {{ klass.name }}{% endblock %}
+{% block title %}{{ _("Saisie · %(class_name)s", class_name=klass.name) }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('portal.dashboard') }}">← Classes et périodes</a>
-{{ heading(klass.academic_year.label ~ ' · ' ~ period.name, klass.name ~ ' — Saisie des cotes', 'Les cotes sont enregistrées automatiquement. Utilisez Tab, Entrée ou les flèches pour naviguer.') }}
-<noscript><div class="alert">Activez JavaScript pour saisir et sauvegarder les cotes.</div></noscript>
+<a href="{{ url_for('portal.dashboard') }}">{{ _("← Classes et périodes") }}</a>
+{{ heading(_('%(year)s · %(period)s', year=klass.academic_year.label, period=period.name), _('%(class_name)s — Saisie des cotes', class_name=klass.name), _('Les cotes sont enregistrées automatiquement. Utilisez Tab, Entrée ou les flèches pour naviguer.')) }}
+<noscript><div class="alert">{{ _("Activez JavaScript pour saisir et sauvegarder les cotes.") }}</div></noscript>
 <div id="grade-grid" data-user="{{ current_user.id }}" data-class="{{ klass.id }}" data-period="{{ period.id }}">
-{% if editable_course_ids %}<div class="actions"><span id="sync-summary" role="status" aria-live="polite">Initialisation de la sauvegarde…</span><button type="button" id="retry-sync" class="secondary">Réessayer la synchronisation</button><button type="button" id="export-drafts" class="secondary">Exporter les brouillons</button></div>{% else %}<p class="alert" role="status">Grille en lecture seule. Les cotes ne peuvent pas être modifiées.</p>{% endif %}
-<p class="muted" id="grid-help">Une cote vide est une note manquante, distincte de zéro. Les cotes validées sont verrouillées. Les brouillons restent sur cet appareil jusqu’à confirmation du serveur.</p>
+{% if editable_course_ids %}<div class="actions"><span id="sync-summary" role="status" aria-live="polite">{{ _("Initialisation de la sauvegarde…") }}</span><button type="button" id="retry-sync" class="secondary">{{ _("Réessayer la synchronisation") }}</button><button type="button" id="export-drafts" class="secondary">{{ _("Exporter les brouillons") }}</button></div>{% else %}<p class="alert" role="status">{{ _("Grille en lecture seule. Les cotes ne peuvent pas être modifiées.") }}</p>{% endif %}
+<p class="muted" id="grid-help">{{ _("Une cote vide est une note manquante, distincte de zéro. Les cotes validées sont verrouillées. Les brouillons restent sur cet appareil jusqu’à confirmation du serveur.") }}</p>
 <div id="storage-warning" class="alert" role="alert" hidden></div>
-<div class="table-wrap" tabindex="0" role="region" aria-label="Grille des cotes défilante">
-<table class="grid-table"><caption>{{ enrollments|length }} élèves · {{ courses|length }} cours · {{ period.name }}</caption>
-<thead><tr><th scope="col">Élève</th>{% for course in courses %}<th scope="col">{{ course.name }}<small>Sur {{ course.max_score }} · Coef. {{ course.coefficient }}</small></th>{% endfor %}</tr></thead>
+<div class="table-wrap" tabindex="0" role="region" aria-label="{{ _("Grille des cotes défilante") }}">
+<table class="grid-table"><caption>{{ _('%(students)s · %(courses)s · %(period)s', students=ngettext('%(num)s élève', '%(num)s élèves', enrollments|length), courses=_('%(count)s cours', count=courses|length), period=period.name) }}</caption>
+<thead><tr><th scope="col">{{ _("Élève") }}</th>{% for course in courses %}<th scope="col">{{ course.name }}<small>{{ _("Sur %(maximum)s · Coef. %(coefficient)s", maximum=course.max_score|interface_decimal, coefficient=course.coefficient|interface_decimal) }}</small></th>{% endfor %}</tr></thead>
 <tbody>{% for enrollment in enrollments %}<tr><th scope="row">{{ enrollment.student.full_name }}<small>{{ enrollment.student.matricule }}</small></th>
 {% for course in courses %}{% set grade = grades.get((enrollment.id, course.id)) %}{% set key = enrollment.id ~ '-' ~ course.id %}
-<td data-state="{{ 'saved' if grade else 'empty' }}"><label class="sr-only" for="grade-{{ key }}">{{ enrollment.student.full_name }} · {{ course.name }} · Sur {{ course.max_score }}</label>
+<td data-state="{{ 'saved' if grade else 'empty' }}"><label class="sr-only" for="grade-{{ key }}">{{ _("%(student)s · %(course)s · Sur %(maximum)s", student=enrollment.student.full_name, course=course.name, maximum=course.max_score|interface_decimal) }}</label>
 {% set not_mine = course.id not in editable_course_ids %}{% set locked = not_mine or (grade and (grade.is_validated or grade.is_archived)) %}
 {% if locked %}<span class="grade-readonly" id="grade-{{ key }}" data-locked="true" aria-describedby="status-{{ key }}">{{ grade.score if grade else "—" }}</span>{% else %}<input disabled class="grade-input" id="grade-{{ key }}" type="text" inputmode="decimal" autocomplete="off" maxlength="12" value="{{ grade.score if grade else '' }}" data-key="{{ key }}" data-enrollment="{{ enrollment.id }}" data-course="{{ course.id }}" data-base="{{ grade.score if grade else '' }}" data-max="{{ course.max_score }}" data-locked="{{ 'true' if locked else 'false' }}" aria-describedby="status-{{ key }}" aria-invalid="false">{% endif %}
-<span class="cell-status" id="status-{{ key }}">{{ "Lecture seule" if not_mine else ("Verrouillée" if locked else ("Enregistré" if grade else "Non saisie")) }}</span>{% if not locked %}<button type="button" class="secondary discard-cell" data-key="{{ key }}" hidden>Reprendre la cote serveur</button>{% endif %}</td>{% endfor %}</tr>
-{% else %}<tr><td colspan="{{ courses|length + 1 }}">Aucun élève inscrit dans cette classe.</td></tr>{% endfor %}</tbody></table></div>
+<span class="cell-status" id="status-{{ key }}">{{ _("Lecture seule") if not_mine else (_("Verrouillée") if locked else (_("Enregistré") if grade else _("Non saisie"))) }}</span>{% if not locked %}<button type="button" class="secondary discard-cell" data-key="{{ key }}" hidden>{{ _("Reprendre la cote serveur") }}</button>{% endif %}</td>{% endfor %}</tr>
+{% else %}<tr><td colspan="{{ courses|length + 1 }}">{{ _("Aucun élève inscrit dans cette classe.") }}</td></tr>{% endfor %}</tbody></table></div>
 {% if editable_course_ids %}<form id="sync-form" hx-post="{{ url_for('portal.sync', class_id=klass.id, period_id=period.id) }}" hx-trigger="sync-grades" hx-swap="none" hx-target="#sync-response"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="changes" id="sync-changes"></form><div id="sync-response" hidden></div>{% endif %}
 </div>{% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='vendor/htmx.min.js') }}" defer></script><script src="{{ url_for('static', filename='js/grade-grid.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script type="application/json" id="grade-grid-messages">{{ {
+"m0": _("Toutes les cotes sont enregistrées"),
+"m1": _("Enregistrement…"),
+"m2": _("Cote verrouillée. Exportez ou abandonnez le brouillon."),
+"m3": _("Brouillon à vérifier"),
+"m4": _("Brouillon local restauré"),
+"m5": _("Brouillon local"),
+"m6": _("Brouillon en mémoire"),
+"m7": _("Verrouillée"),
+"m8": _("Cote serveur restaurée"),
+"m9": _("Enregistré sur le serveur"),
+"m10": _("Session ou requête refusée. Reconnectez-vous puis rechargez cette page ; vos brouillons sont conservés."),
+"m11": _("Connexion interrompue. Brouillon conservé."),
+"m12": _("Rechargez la page après reconnexion pour reprendre les brouillons."),
+"m13": _("Classe"),
+"m14": _("Période"),
+"m15": _("Cellule"),
+"m16": _("Cote"),
+"m17": _("Base serveur"),
+"m18": _("La synchronisation ne peut pas démarrer. Rechargez la page ; exportez vos brouillons si nécessaire."),
+"pending": _("Cotes en attente : %(count)s%(connection)s", count="%(count)s", connection="%(connection)s"),
+"saving_count": _("Cotes en cours d’enregistrement : %(count)s", count="%(count)s")
+,
+"offline": _(" · Hors connexion"),
+"extra2": _("Stockage local indisponible. Gardez cette page ouverte et exportez vos brouillons avant de quitter."),
+"extra4": _("Confirmation manquante. Nouvel essai…"),
+"extra5": _("Nouvelle modification en attente"),
+"extra7": _("Cette grille est ouverte dans un autre onglet. Fermez cet onglet puis rechargez ici."),
+"extra8": _("La saisie requiert un navigateur moderne et une connexion HTTPS.")
+}|tojson }}</script><script src="{{ url_for('static', filename='vendor/htmx.min.js') }}" defer></script><script src="{{ url_for('static', filename='js/grade-grid.js') }}" defer></script>{% endblock %}
 

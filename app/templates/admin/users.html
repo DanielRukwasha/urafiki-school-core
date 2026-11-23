@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Utilisateurs{% endblock %}
+{% block title %}{{ _("Utilisateurs") }}{% endblock %}
 {% block content %}
-<h1>Utilisateurs</h1>
+<h1>{{ _("Utilisateurs") }}</h1>
 <ul>
   {% for user in users %}
-    <li>{{ user.full_name }} — {{ user.role.value }}</li>
+    <li>{{ user.full_name }} — {{ {'DIRECTION': _('Direction'), 'ENSEIGNANT': _('Enseignant'), 'SECRETARIAT': _('Secrétariat'), 'ADMIN': _('Administration'), 'SUPER_ADMIN': _('Super-administration')}.get(user.role.value, user.role.value) }}</li>
   {% endfor %}
 </ul>
 {% endblock %}
