@@ -1,12 +1,15 @@
 """Published reports expose audit history, never editable report values."""
 
+from decimal import Decimal
+
+from app.models.grading import Grade
 from app.models.journal import SensitiveReadKind, SensitiveReadLog
 from tests.integration.test_bulletin_versions import published as published_fixture
 
 published = published_fixture
 
 
-def test_published_history_and_motivated_correction(client, published):
+def test_published_history_and_motivated_correction(client, published, db):
     response = client.get(published["base"])
     assert response.status_code == 200
     html = response.get_data(as_text=True)
@@ -17,6 +20,10 @@ def test_published_history_and_motivated_correction(client, published):
     assert "irréversible" in html
     assert 'class="grade-input"' not in html
     assert 'name="score"' not in html
+
+    grade = Grade.query.execution_options(skip_tenant_filter=True).one()
+    grade.score = Decimal("16")
+    db.session.commit()
 
     motif = "Correction documentée <script>alert(1)</script>"
     assert client.post(published["base"] + "/correction", data={"motif": motif}).status_code == 302
