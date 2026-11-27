@@ -40,6 +40,12 @@ titulaire enregistré.
   (`peut_soumettre_classe`) — jamais Direction directement, jamais un
   attributaire ordinaire.
 
+## Contrat du portail enseignant
+
+- Le titulaire effectif consulte les cotes et l'état d'avancement de sa classe. Chaque cote hors de ses attributions reste en lecture seule.
+- Le POST `consolidation/submit` vérifie le titulariat pour la classe. Le service enregistre l'état soumis, l'horodatage et l'événement d'audit. Les étapes `consolidate`, `validate` et `publish` relèvent de la Direction.
+- Le serveur fournit les classes, les actions et les droits d'écriture que l'interface affiche. L'accès à chaque ressource et chaque transition reste vérifié côté serveur.
+
 ## Fonctions publiées
 
 ```python
