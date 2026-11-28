@@ -38,6 +38,7 @@ from app.services.grade_calculation_engine import (
     rank_students,
 )
 from app.services.grille_service import lignes_actives, maximum_pour_periode, resoudre_grille
+from app.services.tenant_calculation import IncompleteTenantConfigError, resolve_tenant_calculation
 
 SCHEMA_CONTENU = 1
 
@@ -116,8 +117,17 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
     `{"branding": ..., "report": ...}` (see
     `app.tenant_presentation.presentation_configuration`). Every Decimal
     is kept as its exact string so the frozen value round-trips bit for
-    bit."""
+    bit.
+
+    `pourcentage_affiche` is rounded to the tenant's configured
+    `percentage_decimal_places` (invariant 2): an incomplete calculation
+    configuration raises ContenuBulletinError, never a default."""
     from app.models.grading import Grade
+
+    try:
+        decimales = resolve_tenant_calculation(klass.ecole_id).percentage_decimal_places
+    except IncompleteTenantConfigError as error:
+        raise ContenuBulletinError(f"Configuration de calcul incomplète : {error}") from error
 
     columns = colonnes_grille(klass, period)
     enrollments = inscriptions_actives(klass)
@@ -166,6 +176,7 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
             "annee": klass.academic_year.label,
         },
         "periode": {"id": period.id, "nom": period.name},
+        "precision_pourcentage": decimales,
         "colonnes": [
             {
                 "id": c.id,
@@ -196,7 +207,7 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
                     "possible": _decimal(total.weighted_possible),
                     "pourcentage": _decimal(total.percentage),
                     "pourcentage_affiche": _decimal(
-                        quantize_percentage(total.percentage)
+                        quantize_percentage(total.percentage, decimales)
                         if total.percentage is not None
                         else None
                     ),
@@ -241,7 +252,98 @@ def contenu_de_version(version) -> dict:
             f"Version {version.numero} : le contenu stocké ne correspond plus à son "
             "empreinte. Lecture refusée."
         )
-    return json.loads(version.contenu)
+    try:
+        return json.loads(version.contenu)
+    except ValueError as error:
+        # Fingerprint intact but undecodable text: stored damaged.
+        raise ContenuBulletinError(
+            f"Version {version.numero} : le contenu stocké n'est pas un JSON valide "
+            f"({error}). Lecture refusée."
+        ) from error
+
+
+def ligne_corrigee(avant: dict, apres: dict) -> int | None:
+    """The single grid line whose grades differ between two frozen
+    contents, or None when the correction cannot be pinned to exactly one
+    line: structure, presentation, the frozen percentage precision,
+    enrolled students or their identity changed, or grades changed on
+    zero or several lines. When in doubt, None.
+
+    Totals, ranks and percentage values are derived from the grades and
+    are not compared — but the precision they are displayed with is: it
+    comes from the tenant configuration, so a correction that changes it
+    is class-scope, never a single course's. What is compared is the
+    effective precision of each content (`precision_effective`), so a
+    first grade entered or a last grade removed (no percentage on one
+    side) and a content frozen before `precision_pourcentage` existed are
+    judged on the precision they actually use."""
+    structure = ("schema", "classe", "periode", "colonnes", "presentation")
+    if any(avant.get(cle) != apres.get(cle) for cle in structure):
+        return None
+    precision_avant, precision_apres = precision_effective(avant), precision_effective(apres)
+    if precision_avant is None or precision_avant != precision_apres:
+        return None
+    eleves_avant = {e["inscription_id"]: e for e in avant.get("eleves", [])}
+    eleves_apres = {e["inscription_id"]: e for e in apres.get("eleves", [])}
+    if eleves_avant.keys() != eleves_apres.keys():
+        return None
+    lignes = set()
+    for inscription_id, precedent in eleves_avant.items():
+        courant = eleves_apres[inscription_id]
+        if (precedent["nom_complet"], precedent["matricule"]) != (
+            courant["nom_complet"],
+            courant["matricule"],
+        ):
+            return None
+        cotes_avant, cotes_apres = precedent["cotes"], courant["cotes"]
+        lignes.update(
+            ligne
+            for ligne in cotes_avant.keys() | cotes_apres.keys()
+            if cotes_avant.get(ligne) != cotes_apres.get(ligne)
+        )
+    return int(next(iter(lignes))) if len(lignes) == 1 else None
+
+
+def precision_effective(contenu: dict) -> int | None:
+    """The percentage precision a frozen content uses, or None when it
+    cannot be established (then a comparison must answer "no").
+
+    - With `precision_pourcentage`: that value, provided every frozen
+      `pourcentage_affiche` agrees with it; a content contradicting its
+      own key gives None. A content with no percentage at all (no grade
+      yet) keeps its key's precision.
+    - Without the key (frozen before it existed): the number of decimals
+      shared by every `pourcentage_affiche`; None if they disagree or if
+      there is no percentage to infer it from."""
+    decimales = _decimales_affichees(contenu)
+    cle = contenu.get("precision_pourcentage")
+    if cle is not None:
+        return cle if decimales <= {cle} else None
+    return next(iter(decimales)) if len(decimales) == 1 else None
+
+
+def contenus_equivalents(avant: dict, apres: dict) -> bool:
+    """Whether two frozen contents describe the same bulletin. Identical
+    dicts are; so is a content frozen before `precision_pourcentage`
+    existed and a new one that differs from it only by that key — every
+    displayed value, `pourcentage_affiche` strings included, is then
+    identical. The stored contents and their fingerprints are never
+    rewritten."""
+    if avant == apres:
+        return True
+    if "precision_pourcentage" in avant or "precision_pourcentage" not in apres:
+        return False
+    return {cle: valeur for cle, valeur in apres.items() if cle != "precision_pourcentage"} == avant
+
+
+def _decimales_affichees(contenu: dict) -> set[int]:
+    """Every number of decimals used by a frozen `pourcentage_affiche`."""
+    decimales = set()
+    for eleve in contenu.get("eleves", []):
+        affiche = eleve.get("total", {}).get("pourcentage_affiche")
+        if affiche is not None:
+            decimales.add(-Decimal(affiche).as_tuple().exponent)
+    return decimales
 
 
 def _dec(value: str | None) -> Decimal | None:

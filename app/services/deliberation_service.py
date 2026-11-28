@@ -24,6 +24,7 @@ must fix, not a value this module can safely guess.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -47,7 +48,13 @@ from app.models.grading import Grade, GradeAuditAction, GradeAuditLog
 from app.models.mixins import utcnow
 from app.models.student import Enrollment
 from app.models.tenant_config import TenantConfig
-from app.services.contenu_bulletin import calculer_contenu, serialiser
+from app.services.contenu_bulletin import (
+    ContenuBulletinError,
+    calculer_contenu,
+    contenu_de_version,
+    contenus_equivalents,
+    serialiser,
+)
 from app.services.grade_calculation_engine import (
     CourseGradeInput,
     compute_period_total,
@@ -59,6 +66,8 @@ from app.services.grille_service import GrilleConfigError, maximum_pour_periode
 AUTOMATIC_LABELS = {"ADMITTED": "Admis", "DEFERRED": "Ajourné", "MANUAL": "À délibérer"}
 MANUAL_LABELS = {"ADMITTED": "Admis", "DEFERRED": "Ajourné"}
 DISTRIBUTION_BUCKETS = ((0, 20), (20, 40), (40, 60), (60, 80), (80, 100.01))
+
+logger = logging.getLogger(__name__)
 
 
 class DeliberationConfigError(ValueError):
@@ -133,18 +142,40 @@ def _commit_publication():
 def _version_figee(publication, *, numero, auteur, publie_le, motif=None, corrigee=None):
     """A new BulletinVersion carrying the bulletin's content computed now,
     frozen as canonical JSON with its SHA-256 (invariant 9). A correction
-    whose content is identical to the version it corrects is refused:
-    a correction must correct something."""
+    whose content is equivalent to the version it corrects is refused:
+    a correction must correct something. Equivalence, not raw fingerprint
+    equality: a version frozen before `precision_pourcentage` existed and
+    an unchanged bulletin computed now differ only by that key
+    (`contenus_equivalents`).
+
+    The corrected version's content is read through `contenu_de_version`
+    (fingerprint, then decoding). A damaged content — fingerprint broken
+    or undecodable text — is logged as an integrity error and the
+    correction is refused explicitly: equivalence cannot be established,
+    and an integrity incident is never papered over by a new version."""
     from app.tenant_presentation import presentation_configuration
 
     klass = db.session.get(SchoolClass, publication.school_class_id)
     period = db.session.get(EvaluationPeriod, publication.period_id)
     try:
         contenu = calculer_contenu(klass, period, presentation_configuration())
-    except GrilleConfigError as exc:
+    except (ContenuBulletinError, GrilleConfigError) as exc:
         raise TransitionError(f"Publication impossible : {exc}") from exc
     texte, empreinte = serialiser(contenu)
-    if corrigee is not None and corrigee.empreinte == empreinte:
+    precedent = None
+    if corrigee is not None and corrigee.contenu is not None:
+        try:
+            precedent = contenu_de_version(corrigee)
+        except ContenuBulletinError as exc:
+            logger.error("Intégrité du bulletin figé : %s", exc)
+            raise TransitionError(
+                f"Correction impossible : {exc} Incident d'intégrité consigné ; "
+                "la version corrigée doit être examinée avant toute nouvelle publication."
+            ) from exc
+    if corrigee is not None and (
+        corrigee.empreinte == empreinte
+        or (precedent is not None and contenus_equivalents(precedent, contenu))
+    ):
         raise TransitionError(
             f"Le bulletin est identique à la version {corrigee.numero} : "
             "aucune correction à publier."

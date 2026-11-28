@@ -83,6 +83,8 @@ peut_soumettre_classe(user, school_class, period) -> bool
     # titulaire effectif uniquement.
 peut_rouvrir_periode(user) -> bool        # Direction uniquement
 peut_valider_bulletin(user) -> bool       # Direction uniquement
+peut_lire_motif_correction(user, school_class, version) -> bool
+    # voir « Motifs de correction des bulletins publiés ».
 peut_gerer_grille(user) -> bool           # Direction uniquement
 
 require_lecture_classe(user, school_class) -> None       # lève 404
@@ -132,6 +134,78 @@ qu'un compte désactivé n'était jamais « authentifié » et recevait 302
   n'est pas reconnu et ne reçoit jamais ce 403 ;
 - **connexion inchangée** : `is_authenticated` n'est pas surchargé, et un
   compte désactivé ne passe jamais `login_required`.
+
+## Motifs de correction des bulletins publiés
+
+**Décision du propriétaire (2026-11-28, revue de #126)**. Le motif d'une
+correction motivée est lisible selon `peut_lire_motif_correction(user,
+school_class, version)`, seule source de la règle ; une route n'en
+décide jamais elle-même.
+
+| Qui | Motifs lisibles |
+|---|---|
+| Direction, titulaire effectif de la classe (au présent) | tous |
+| Enseignant attributaire | seulement le motif d'une correction dont le contenu figé, comparé à la version qu'elle corrige, ne change les cotes que d'**une seule ligne**, et que cette ligne est la sienne dans cette classe |
+| Tout autre utilisateur, secrétariat compris | aucun |
+
+- Une première publication n'a pas de motif.
+- Une correction qui ne se ramène pas à une seule ligne reste au
+  périmètre de la classe : changement de structure, de présentation,
+  d'élèves, de cotes sur plusieurs lignes, ou de **précision figée des
+  pourcentages** (elle vient de la configuration de l'école, pas d'un
+  cours). En cas de doute : non. C'est la **précision effective** de
+  chaque contenu qui est comparée (`precision_effective`) : la clé
+  `precision_pourcentage` si les `pourcentage_affiche` la respectent
+  (un contenu sans aucun pourcentage, avant la première cote, garde la
+  précision de sa clé) ; à défaut de clé, le nombre de décimales commun
+  à tous les `pourcentage_affiche`. Une précision qui ne peut pas être
+  établie (ancien format sans aucun pourcentage, contenu qui contredit
+  sa clé) donne « non ».
+- Une correction dont le bulletin est équivalent à la version corrigée
+  est refusée. Un contenu figé avant `precision_pourcentage` et un
+  contenu recalculé qui n'en diffère que par cette clé sont
+  équivalents ; les anciens instantanés et leurs empreintes ne sont pas
+  réécrits.
+- Une version d'une autre classe : non.
+
+**Intégrité du contenu figé — même contrat pour tous les profils :**
+
+| Contenu figé de la version | Direction, titulaire | Attributaire | Journal |
+|---|---|---|---|
+| intact | oui | selon la ligne corrigée | — |
+| altéré (empreinte rompue, ou contenu sans empreinte et inversement) | **non** | non | erreur d'intégrité |
+| antérieur au gel (migration `d7e2b4c1a9f3` : ni contenu ni empreinte) | oui | non | — |
+
+- Un contenu altéré n'est lu par personne : le bulletin est un incident
+  d'intégrité, jamais une correction ordinaire.
+- Un contenu antérieur au gel n'a rien à vérifier et rien de rompu. Le
+  motif est une colonne de la version, pas une partie du contenu figé :
+  le périmètre de classe le lit. L'attributaire ne le lit pas, car la
+  correction ne peut pas être ramenée à une ligne.
+- Pour l'attributaire, la version corrigée est vérifiée de la même
+  façon : altérée → non, et journalisée ; antérieure au gel → non.
+- Le motif reste un texte libre : la règle borne l'événement, pas ce
+  que dit le texte. Le propriétaire l'a accepté en connaissance de cause.
+- Écrans : la grille d'un attributaire affiche les motifs que la règle
+  lui ouvre ; la consolidation n'affiche que les motifs du périmètre de
+  classe (choix d'interface, #126).
+
+## Précision des pourcentages dans le contenu figé
+
+Le `pourcentage_affiche` du contenu figé d'une version est arrondi au
+`percentage_decimal_places` du tenant au moment de la publication, puis
+ne bouge plus, même si la configuration change ensuite (#69, partiel).
+Une configuration de calcul incomplète refuse la publication avec une
+erreur explicite, jamais une valeur par défaut (invariant 2).
+
+La précision prise en charge va de **0 à 6 décimales**
+(`MIN_PERCENTAGE_DECIMAL_PLACES`, `MAX_PERCENTAGE_DECIMAL_PLACES` dans
+`app/services/tenant_calculation.py`). Une valeur stockée hors de ces
+bornes est une configuration invalide : la publication est refusée avec
+le même message explicite (réponse 409), jamais ramenée en silence à une
+valeur par défaut, et jamais laissée produire une exception non traitée.
+La précision appliquée est elle-même figée dans le contenu
+(`precision_pourcentage`).
 
 ## Verrouillage d'écriture et machine à états
 
