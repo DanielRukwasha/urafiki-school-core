@@ -10,9 +10,12 @@ all), never a specific class, line, or student.
 import json
 from decimal import Decimal, InvalidOperation
 
+from babel.numbers import format_decimal
 from flask import Blueprint, abort, g, make_response, redirect, render_template, request, url_for
+from flask_babel import get_locale
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer, joinedload
 
 from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass
@@ -31,6 +34,7 @@ from app.services.authorization_service import (
     peut_encoder_ligne,
     peut_lire_cotes_classe,
     peut_soumettre_classe,
+    peut_valider_bulletin,
     require_direction,
     require_lecture_classe,
 )
@@ -50,6 +54,19 @@ from app.ui.consolidation import ConsolidationPayloadError, normalize_consolidat
 bp = Blueprint("portal", __name__, url_prefix="/portal")
 ALL_ROLES = tuple(RoleEnum)
 EDIT_ROLES = (RoleEnum.DIRECTION, RoleEnum.ENSEIGNANT)
+
+
+@bp.app_context_processor
+def interface_language():
+    return {"interface_locale": str(get_locale())}
+
+
+@bp.app_template_filter("interface_decimal")
+def interface_decimal(value):
+    """Localize an existing server Decimal without another rounding step."""
+    decimal_places = max(0, -value.as_tuple().exponent)
+    pattern = "#,##0" + ("." + "0" * decimal_places if decimal_places else "")
+    return format_decimal(value, format=pattern, locale=get_locale(), decimal_quantization=False)
 
 
 def active(query, model):
@@ -291,7 +308,14 @@ def assignments():
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/grid")
 @roles_required(*EDIT_ROLES)
 def grid(class_id, period_id):
-    return render_template("portal/grid.html", **context(class_id, period_id))
+    ctx = context(class_id, period_id)
+    return render_template(
+        "portal/grid.html",
+        bulletin_versions=_published_versions(
+            ctx["klass"], _publication_for(class_id, period_id)
+        ),
+        **ctx,
+    )
 
 
 @bp.post("/classes/<int:class_id>/periods/<int:period_id>/sync")
@@ -532,15 +556,60 @@ def _server_consolidation_payload(class_id, period_id):
         abort(502, description="Réponse de consolidation invalide.")
 
 
+def _publication_for(class_id, period_id):
+    from app.models.deliberation_workflow import PeriodPublication
+
+    return PeriodPublication.query.filter_by(school_class_id=class_id, period_id=period_id).first()
+
+
+def _published_versions(klass, publication):
+    from app.models.deliberation_workflow import BulletinVersion
+
+    if publication is None or not publication.published:
+        return []
+    if not peut_lire_cotes_classe(current_user, klass):
+        return []
+    versions = (
+        BulletinVersion.query.filter_by(publication_id=publication.id)
+        .options(
+            joinedload(BulletinVersion.auteur),
+            defer(BulletinVersion.contenu),
+            defer(BulletinVersion.empreinte),
+        )
+        .order_by(BulletinVersion.numero.desc())
+        .all()
+    )
+    return [
+        {
+            "numero": version.numero,
+            "motif": version.motif,
+            "auteur": version.auteur.full_name,
+            "publie_le": version.publie_le,
+        }
+        for version in versions
+    ]
+
+
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/consolidation")
 @roles_required(*ALL_ROLES)
 def consolidation(class_id, period_id):
     klass = db.get_or_404(SchoolClass, class_id)
     require_lecture_classe(current_user, klass)
     payload = _server_consolidation_payload(class_id, period_id)
+    from app.services.deliberation_service import MOTIF_CORRECTION_MIN
+
+    publication = _publication_for(class_id, period_id)
+    correction_url = (
+        url_for("portal.publish_correction", class_id=class_id, period_id=period_id)
+        if publication and publication.published and peut_valider_bulletin(current_user)
+        else None
+    )
     return render_template(
         "portal/consolidation.html",
         consolidation=payload,
+        bulletin_versions=_published_versions(klass, publication),
+        correction_url=correction_url,
+        correction_min_length=MOTIF_CORRECTION_MIN,
         deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),
         preview_url=url_for(
             "portal.print_report", class_id=class_id, period_id=period_id, kind="bulletins"

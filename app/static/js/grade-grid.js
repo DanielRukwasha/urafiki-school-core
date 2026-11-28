@@ -7,6 +7,9 @@
   const summary = document.querySelector("#sync-summary");
   const warning = document.querySelector("#storage-warning");
   const inputs = new Map([...grid.querySelectorAll(".grade-input")].map(el => [el.dataset.key, el]));
+  if (!inputs.size) return;
+  const messages = JSON.parse(document.getElementById("grade-grid-messages").textContent);
+  const formatMessage = (key, values) => messages[key].replace(/%\((\w+)\)s/g, (_, name) => String(values[name]));
   const pending = new Map();
   let batch = null, timer, paused = false, storageOK = true;
   const prefix = ["urafiki", "v1", grid.dataset.user, grid.dataset.class, grid.dataset.period].join(":") + ":";
@@ -14,7 +17,7 @@
     function storageError() {
       storageOK = false;
       warning.hidden = false;
-      warning.textContent = "Stockage local indisponible. Gardez cette page ouverte et exportez vos brouillons avant de quitter.";
+      warning.textContent = messages.storageUnavailable;
     }
     function persist(key, draft) {
       try {
@@ -30,8 +33,8 @@
     }
     function announce(message) {
       summary.textContent = message || (pending.size
-        ? pending.size + " cote(s) en attente" + (!navigator.onLine ? " · Hors connexion" : "")
-        : "Toutes les cotes sont enregistrées");
+        ? formatMessage("pending", {count: pending.size, connection: !navigator.onLine ? messages.offline : ""})
+        : messages.allSaved);
     }
     function schedule(delay = 500) { clearTimeout(timer); timer = setTimeout(flush, delay); }
     function flush() {
@@ -41,10 +44,10 @@
       batch = new Map(entries.map(([key, draft]) => [key, {...draft}]));
       document.querySelector("#sync-changes").value = JSON.stringify(entries.map(([key, draft]) => {
         const input = inputs.get(key);
-        state(input, "saving", "Enregistrement…");
+        state(input, "saving", messages.saving);
         return {enrollment: Number(input.dataset.enrollment), course: Number(input.dataset.course), value: draft.value, base: draft.base};
       }));
-      announce("Enregistrement de " + entries.length + " cote(s)…");
+      announce(formatMessage("saving_count", {count: entries.length}));
       htmx.trigger(form, "sync-grades");
     }
     for (const [key, input] of inputs) {
@@ -57,8 +60,8 @@
       if (draft) {
         pending.set(key, draft);
         input.value = draft.value;
-        if (input.disabled) { draft.error = true; state(input, "error", "Cote verrouillée. Exportez ou abandonnez le brouillon."); }
-        else state(input, draft.error ? "error" : "local", draft.error ? "Brouillon à vérifier" : "Brouillon local restauré");
+        if (input.disabled) { draft.error = true; state(input, "error", messages.lockedDraft); }
+        else state(input, draft.error ? "error" : "local", draft.error ? messages.draftNeedsReview : messages.draftRestored);
       }
     }
     grid.addEventListener("input", event => {
@@ -70,7 +73,7 @@
       const draft = {value, base: previous ? previous.base : input.dataset.base, error: false};
       pending.set(key, draft);
       persist(key, draft);
-      state(input, "local", storageOK ? "Brouillon local" : "Brouillon en mémoire");
+      state(input, "local", storageOK ? messages.localDraft : messages.memoryDraft);
       announce(); schedule();
     });
     grid.addEventListener("keydown", event => {
@@ -90,7 +93,7 @@
       const key = event.target.dataset.key, input = inputs.get(key);
       pending.delete(key); persist(key, null);
       input.value = input.dataset.base;
-      state(input, "saved", input.disabled ? "Verrouillée" : "Cote serveur restaurée");
+      state(input, "saved", input.disabled ? messages.locked : messages.serverValueRestored);
       announce();
     });
     form.addEventListener("htmx:afterRequest", event => {
@@ -103,15 +106,15 @@
         const results = new Map([...documentResult.querySelectorAll("[data-sync-results] [data-key]")].map(el => [el.dataset.key, el]));
         for (const [key, submitted] of sent) {
           const draft = pending.get(key), input = inputs.get(key), result = results.get(key);
-          if (!draft || !result) { if (draft) state(input, "local", "Confirmation manquante. Nouvel essai…"); continue; }
+          if (!draft || !result) { if (draft) state(input, "local", messages.confirmationMissing); continue; }
           if (result.dataset.state === "saved") {
             input.dataset.base = result.dataset.base;
             if (draft.value === submitted.value) {
               pending.delete(key); persist(key, null);
-              state(input, "saved", "Enregistré sur le serveur");
+              state(input, "saved", messages.savedOnServer);
             } else {
               draft.base = result.dataset.base; persist(key, draft);
-              state(input, "local", "Nouvelle modification en attente");
+              state(input, "local", messages.newEditPending);
             }
           } else if (draft.value === submitted.value) {
             draft.error = true; persist(key, draft);
@@ -120,8 +123,8 @@
         }
         schedule();
       } else {
-        paused = [400, 401, 403].includes(xhr.status) || (xhr.status === 200 && !valid);
-        const message = paused ? "Session ou requête refusée. Reconnectez-vous puis rechargez cette page ; vos brouillons sont conservés." : "Connexion interrompue. Brouillon conservé.";
+        paused = [400, 401, 403, 404].includes(xhr.status) || (xhr.status === 200 && !valid);
+        const message = paused ? messages.requestRejected : messages.connectionInterrupted;
         for (const key of sent.keys()) if (pending.has(key)) state(inputs.get(key), paused ? "error" : "local", message);
         if (paused) { warning.hidden = false; warning.textContent = message; }
         else schedule(5000);
@@ -129,12 +132,12 @@
       announce();
     });
     document.querySelector("#retry-sync").addEventListener("click", () => {
-      if (paused) { announce("Rechargez la page après reconnexion pour reprendre les brouillons."); return; }
+      if (paused) { announce(messages.reloadToResume); return; }
       for (const [key, draft] of pending) if (!inputs.get(key).disabled) { draft.error = false; persist(key, draft); }
       schedule(0);
     });
     document.querySelector("#export-drafts").addEventListener("click", () => {
-      const csv = [["Classe", "Période", "Cellule", "Cote", "Base serveur"], ...[...pending].map(([key, d]) => [grid.dataset.class, grid.dataset.period, key, d.value, d.base])];
+      const csv = [[messages.csvClass, messages.csvPeriod, messages.csvCell, messages.csvGrade, messages.csvServerBase], ...[...pending].map(([key, d]) => [grid.dataset.class, grid.dataset.period, key, d.value, d.base])];
       const content = csv.map(row => row.map(value => '"' + String(value).replace(/^[=+@-]/, "'$&").replaceAll('"', '""') + '"').join(";")).join("\r\n");
       const url = URL.createObjectURL(new Blob(["\uFEFF", content], {type: "text/csv;charset=utf-8"}));
       const link = document.createElement("a"); link.href = url; link.download = "urafiki-brouillons.csv"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -142,20 +145,20 @@
     window.addEventListener("online", () => schedule(0));
     window.addEventListener("offline", () => announce());
     window.addEventListener("beforeunload", event => { if (pending.size) { event.preventDefault(); event.returnValue = ""; } });
-    if (!window.htmx) { paused = true; warning.hidden = false; warning.textContent = "La synchronisation ne peut pas démarrer. Rechargez la page ; exportez vos brouillons si nécessaire."; }
+    if (!window.htmx) { paused = true; warning.hidden = false; warning.textContent = messages.syncUnavailable; }
     announce(); schedule();
   };
   if (navigator.locks) {
     navigator.locks.request(prefix, {ifAvailable: true}, async lock => {
       if (!lock) {
-        summary.textContent = "Cette grille est ouverte dans un autre onglet. Fermez cet onglet puis rechargez ici.";
+        summary.textContent = messages.gridOpenInAnotherTab;
         return;
       }
       start();
       await new Promise(() => {});
     });
   } else {
-    summary.textContent = "La saisie requiert un navigateur moderne et une connexion HTTPS.";
+    summary.textContent = messages.browserUnsupported;
   }
 })();
 
