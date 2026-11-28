@@ -149,13 +149,32 @@ décide jamais elle-même.
 | Tout autre utilisateur, secrétariat compris | aucun |
 
 - Une première publication n'a pas de motif.
-- Une correction qui ne se ramène pas à une seule ligne (changement de
-  structure, de présentation, d'élèves, ou de cotes sur plusieurs
-  lignes) reste au périmètre de la classe.
-- Échec fermé : une version d'une autre classe, un contenu antérieur au
-  gel (migration `d7e2b4c1a9f3`) ou un contenu qui ne correspond plus à
-  son empreinte donnent « non ». La rupture d'empreinte est en plus
-  journalisée comme erreur d'intégrité.
+- Une correction qui ne se ramène pas à une seule ligne reste au
+  périmètre de la classe : changement de structure, de présentation,
+  d'élèves, de cotes sur plusieurs lignes, ou de **précision figée des
+  pourcentages** (elle vient de la configuration de l'école, pas d'un
+  cours). En cas de doute : non. La précision est comparée par la clé
+  `precision_pourcentage` et par le nombre de décimales de chaque
+  `pourcentage_affiche`, ce qui couvre aussi un contenu figé avant
+  l'existence de la clé.
+- Une version d'une autre classe : non.
+
+**Intégrité du contenu figé — même contrat pour tous les profils :**
+
+| Contenu figé de la version | Direction, titulaire | Attributaire | Journal |
+|---|---|---|---|
+| intact | oui | selon la ligne corrigée | — |
+| altéré (empreinte rompue, ou contenu sans empreinte et inversement) | **non** | non | erreur d'intégrité |
+| antérieur au gel (migration `d7e2b4c1a9f3` : ni contenu ni empreinte) | oui | non | — |
+
+- Un contenu altéré n'est lu par personne : le bulletin est un incident
+  d'intégrité, jamais une correction ordinaire.
+- Un contenu antérieur au gel n'a rien à vérifier et rien de rompu. Le
+  motif est une colonne de la version, pas une partie du contenu figé :
+  le périmètre de classe le lit. L'attributaire ne le lit pas, car la
+  correction ne peut pas être ramenée à une ligne.
+- Pour l'attributaire, la version corrigée est vérifiée de la même
+  façon : altérée → non, et journalisée ; antérieure au gel → non.
 - Le motif reste un texte libre : la règle borne l'événement, pas ce
   que dit le texte. Le propriétaire l'a accepté en connaissance de cause.
 - Écrans : la grille d'un attributaire affiche les motifs que la règle
@@ -169,6 +188,15 @@ Le `pourcentage_affiche` du contenu figé d'une version est arrondi au
 ne bouge plus, même si la configuration change ensuite (#69, partiel).
 Une configuration de calcul incomplète refuse la publication avec une
 erreur explicite, jamais une valeur par défaut (invariant 2).
+
+La précision prise en charge va de **0 à 6 décimales**
+(`MIN_PERCENTAGE_DECIMAL_PLACES`, `MAX_PERCENTAGE_DECIMAL_PLACES` dans
+`app/services/tenant_calculation.py`). Une valeur stockée hors de ces
+bornes est une configuration invalide : la publication est refusée avec
+le même message explicite (réponse 409), jamais ramenée en silence à une
+valeur par défaut, et jamais laissée produire une exception non traitée.
+La précision appliquée est elle-même figée dans le contenu
+(`precision_pourcentage`).
 
 ## Verrouillage d'écriture et machine à états
 

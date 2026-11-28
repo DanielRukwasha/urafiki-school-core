@@ -3,8 +3,11 @@
 1. The frozen content rounds `pourcentage_affiche` to the tenant's
    configured `percentage_decimal_places` (invariant 2, #69): never the
    platform default, and an incomplete configuration refuses to publish.
+   The precision is bounded (0–6): a value outside refuses to publish
+   with an explicit error, never an unhandled exception.
 2. `peut_lire_motif_correction`: who may read the motif of a correction
-   (owner decision, PERMISSIONS.md)."""
+   (owner decision, PERMISSIONS.md), with the same integrity contract
+   for every profile."""
 
 import json
 from decimal import Decimal
@@ -21,7 +24,7 @@ from app.models.tenant_config import TenantConfig
 from app.models.user import RoleEnum
 from app.security.tenant import resolve_tenant
 from app.services.authorization_service import peut_lire_motif_correction
-from app.services.contenu_bulletin import ContenuBulletinError, calculer_contenu
+from app.services.contenu_bulletin import ContenuBulletinError, calculer_contenu, ligne_corrigee
 from tests.integration.test_contenu_bulletin import _grade
 from tests.integration.test_contenu_bulletin import classe as classe_fixture
 from tests.integration.test_contenu_bulletin import published as published_fixture
@@ -56,8 +59,12 @@ def _config(tenant):
 
 
 def _publish(client, base):
-    for action in ("submit", "consolidate", "validate", "publish"):
-        client.post(f"{base}/consolidation/{action}")
+    """Run the workflow up to publication, checking every step: the
+    preparatory transitions must succeed, so a refused publication can
+    only come from the publication itself. Returns its response."""
+    for action in ("submit", "consolidate", "validate"):
+        assert client.post(f"{base}/consolidation/{action}").status_code == 302, action
+    return client.post(f"{base}/consolidation/publish")
 
 
 # --- 1. Configured precision in the frozen content ------------------------
@@ -67,10 +74,12 @@ def test_frozen_percentage_uses_the_configured_decimal_places(classe, client, db
     # Refutation: on main the frozen value is "75.00" whatever the tenant says.
     _config(tenant_a).percentage_decimal_places = 3
     db.session.commit()
-    _publish(client, classe["base"])
+    assert _publish(client, classe["base"]).status_code == 302
     (v1,) = _versions()
-    (eleve,) = json.loads(v1.contenu)["eleves"]
+    contenu = json.loads(v1.contenu)
+    (eleve,) = contenu["eleves"]
     assert eleve["total"]["pourcentage_affiche"] == "75.000"
+    assert contenu["precision_pourcentage"] == 3
 
 
 def test_precision_is_frozen_at_publication(published, client, db, tenant_a):
@@ -95,8 +104,35 @@ def test_incomplete_calculation_config_refuses_to_publish(classe, client, school
     monkeypatch.setattr(contenu_bulletin, "resolve_tenant_calculation", incomplete)
     with pytest.raises(ContenuBulletinError, match="Configuration de calcul incomplète"):
         calculer_contenu(school_class, evaluation_period, {})
-    _publish(client, classe["base"])
+    response = _publish(client, classe["base"])
+    assert response.status_code == 409
+    assert "Configuration de calcul incomplète" in response.get_data(as_text=True)
     assert _versions() == []
+
+
+@pytest.mark.parametrize("decimales", [30, 7, -1])
+def test_out_of_range_precision_refuses_to_publish_explicitly(classe, client, db, tenant_a,
+                                                             decimales):
+    # Refutation of the Frontend review blocker on #129: 30 decimals made
+    # quantize raise decimal.InvalidOperation, an unhandled 500.
+    _config(tenant_a).percentage_decimal_places = decimales
+    db.session.commit()
+    response = _publish(client, classe["base"])
+    assert response.status_code == 409
+    body = response.get_data(as_text=True)
+    assert "Configuration de calcul incomplète" in body
+    assert "outside the supported range 0–6" in body
+    assert _versions() == []
+
+
+@pytest.mark.parametrize("decimales", [0, 6])
+def test_precision_bounds_are_supported(classe, client, db, tenant_a, decimales):
+    _config(tenant_a).percentage_decimal_places = decimales
+    db.session.commit()
+    assert _publish(client, classe["base"]).status_code == 302
+    (v1,) = _versions()
+    (eleve,) = json.loads(v1.contenu)["eleves"]
+    assert eleve["total"]["pourcentage_affiche"] == ("75" if decimales == 0 else "75.000000")
 
 
 # --- 2. peut_lire_motif_correction -----------------------------------------
@@ -180,6 +216,47 @@ def test_attributaire_reads_only_the_correction_of_their_single_line(corrections
     assert not peut_lire_motif_correction(c.affected, school_class, c.v1)
 
 
+def test_correction_changing_a_grade_and_the_precision_is_class_scope(
+    published, client, db, make_user, school_class, grille_ligne, tenant_a
+):
+    # Refutation of the Frontend review blocker on #129: 75.00 -> 80.000
+    # with one grade changed was pinned to that grade's line.
+    affected, _ = make_user(email="affected@example.com")
+    db.session.add(TeacherAssignment(
+        ecole_id=tenant_a.id, teacher_id=affected.id,
+        school_class_id=school_class.id, grille_cours_ligne_id=grille_ligne.id,
+    ))
+    _grade(published["enrollment"], grille_ligne, published["period"]).score = Decimal("16")
+    _config(tenant_a).percentage_decimal_places = 3
+    db.session.commit()
+    response = client.post(published["base"] + "/consolidation/correction", data={"motif": MOTIF})
+    assert response.status_code == 302
+    v1, v2 = _versions()
+    (avant,), (apres,) = json.loads(v1.contenu)["eleves"], json.loads(v2.contenu)["eleves"]
+    assert (avant["total"]["pourcentage_affiche"], apres["total"]["pourcentage_affiche"]) == (
+        "75.00", "80.000"
+    )
+    assert not peut_lire_motif_correction(affected, school_class, v2)
+    assert peut_lire_motif_correction(published["user"], school_class, v2)
+
+
+def test_precision_change_is_detected_without_the_frozen_key():
+    # A content frozen before `precision_pourcentage` existed: the number
+    # of decimals of the displayed percentages still tells them apart.
+    def contenu(cote, affiche):
+        return {
+            "schema": 1, "classe": {}, "periode": {}, "colonnes": [], "presentation": {},
+            "eleves": [{
+                "inscription_id": 1, "nom_complet": "A", "matricule": "M",
+                "cotes": {"7": {"cote": cote, "appreciation": None}},
+                "total": {"pourcentage_affiche": affiche},
+            }],
+        }
+
+    assert ligne_corrigee(contenu("15", "75.00"), contenu("16", "80.00")) == 7
+    assert ligne_corrigee(contenu("15", "75.00"), contenu("16", "80.000")) is None
+
+
 def test_others_never_read_a_motif(corrections, school_class):
     c = corrections
     for user in (c.other, c.unassigned, c.secretariat, None):
@@ -205,30 +282,62 @@ def _record_errors(monkeypatch):
     return messages
 
 
-def test_altered_frozen_content_fails_closed_and_is_logged(corrections, school_class,
-                                                            monkeypatch):
-    # Detached copy: the stored version itself is immutable.
-    v2 = corrections.v2
-    altered = SimpleNamespace(
-        publication=v2.publication,
-        corrige_version=v2.corrige_version,
-        contenu=v2.contenu + " ",
-        empreinte=v2.empreinte,
-        numero=v2.numero,
+def _copie(version, **champs):
+    """Detached copy of a version: the stored version itself is immutable."""
+    attributs = dict(
+        publication=version.publication, corrige_version=version.corrige_version,
+        contenu=version.contenu, empreinte=version.empreinte, numero=version.numero,
     )
+    attributs.update(champs)
+    return SimpleNamespace(**attributs)
+
+
+def test_altered_frozen_content_is_read_by_nobody_and_logged(corrections, school_class,
+                                                              monkeypatch):
+    # Integrity conditions the motif for every profile, class scope included.
+    c = corrections
+    altered = _copie(c.v2, contenu=c.v2.contenu + " ")
+    for user in (c.direction, c.titulaire, c.affected):
+        errors = _record_errors(monkeypatch)
+        assert not peut_lire_motif_correction(user, school_class, altered), user.email
+        assert any("empreinte" in message for message in errors), user.email
+
+
+def test_content_without_its_fingerprint_counts_as_altered(corrections, school_class,
+                                                           monkeypatch):
+    c = corrections
     errors = _record_errors(monkeypatch)
-    assert not peut_lire_motif_correction(corrections.affected, school_class, altered)
+    assert not peut_lire_motif_correction(c.direction, school_class,
+                                          _copie(c.v2, empreinte=None))
+    assert errors
+
+
+def test_altered_corrected_version_refuses_the_attributaire_only(corrections, school_class,
+                                                                 monkeypatch):
+    # v2's own content is intact: the class scope reads its motif. The
+    # attributaire's reading depends on comparing with v1, which is broken.
+    c = corrections
+    version = _copie(c.v2, corrige_version=_copie(c.v1, contenu=c.v1.contenu + " "))
+    errors = _record_errors(monkeypatch)
+    assert peut_lire_motif_correction(c.direction, school_class, version)
+    assert peut_lire_motif_correction(c.titulaire, school_class, version)
+    assert errors == []
+    assert not peut_lire_motif_correction(c.affected, school_class, version)
     assert any("empreinte" in message for message in errors)
 
 
-def test_content_frozen_before_migration_is_refused_without_noise(
+def test_content_frozen_before_migration_is_class_scope_without_noise(
     corrections, school_class, monkeypatch
 ):
-    v2 = corrections.v2
-    legacy = SimpleNamespace(
-        publication=v2.publication, corrige_version=v2.corrige_version,
-        contenu=None, empreinte=None, numero=v2.numero,
-    )
+    # Nothing to verify and nothing broken: the motif (a column of the
+    # version) stays readable by the class scope, never by an attributaire.
+    c = corrections
+    legacy = _copie(c.v2, contenu=None, empreinte=None)
+    legacy_parent = _copie(c.v2, corrige_version=_copie(c.v1, contenu=None, empreinte=None))
     errors = _record_errors(monkeypatch)
-    assert not peut_lire_motif_correction(corrections.affected, school_class, legacy)
+    assert peut_lire_motif_correction(c.direction, school_class, legacy)
+    assert peut_lire_motif_correction(c.titulaire, school_class, legacy)
+    assert not peut_lire_motif_correction(c.affected, school_class, legacy)
+    assert not peut_lire_motif_correction(c.affected, school_class, legacy_parent)
+    assert not peut_lire_motif_correction(c.secretariat, school_class, legacy)
     assert errors == []

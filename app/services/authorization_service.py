@@ -198,18 +198,36 @@ def peut_lire_motif_correction(user, school_class, version) -> bool:
       be pinned to a single line stays class-scope only.
     - Anyone else (secretariat included): never.
 
-    Fails closed: a version of another class, a content frozen before
-    migration d7e2b4c1a9f3, or a content that no longer matches its
-    fingerprint gives False. The fingerprint mismatch is also logged as
-    an integrity error, so an altered content never goes unnoticed."""
+    Integrity, the same for every profile:
+    - a version whose stored content no longer matches its fingerprint:
+      nobody reads its motif, Direction and titulaire included, and the
+      mismatch is logged as an integrity error — an altered bulletin is
+      surfaced as an incident, never shown as an ordinary correction;
+    - a version frozen before migration d7e2b4c1a9f3 (no content, no
+      fingerprint): nothing can be checked and nothing is broken. Its
+      motif is a column of the version, not part of the frozen content,
+      so the class scope keeps reading it; an attributaire never does,
+      since the correction cannot be pinned to a line;
+    - for an attributaire, the corrected version's content is checked the
+      same way: altered → refused and logged, absent → refused.
+
+    A version of another class gives False."""
     if user is None or version.publication.school_class_id != school_class.id:
+        return False
+    contenu = _contenu_verifie(version)
+    if contenu is _ALTERE:
         return False
     if peut_lire_cotes_classe(user, school_class):
         return True
     precedente = version.corrige_version
-    if precedente is None:
+    if precedente is None or contenu is None:
         return False
-    ligne_id = _ligne_corrigee_par(precedente, version)
+    contenu_precedent = _contenu_verifie(precedente)
+    if contenu_precedent is _ALTERE or contenu_precedent is None:
+        return False
+    from app.services.contenu_bulletin import ligne_corrigee
+
+    ligne_id = ligne_corrigee(contenu_precedent, contenu)
     if ligne_id is None:
         return False
     from app.models.grille import GrilleCoursLigne
@@ -218,20 +236,23 @@ def peut_lire_motif_correction(user, school_class, version) -> bool:
     return ligne is not None and est_attributaire(user, school_class, ligne)
 
 
-def _ligne_corrigee_par(precedente, version) -> int | None:
-    from app.services.contenu_bulletin import (
-        ContenuBulletinError,
-        contenu_de_version,
-        ligne_corrigee,
-    )
+_ALTERE = object()
 
-    if precedente.contenu is None or version.contenu is None:
+
+def _contenu_verifie(version):
+    """The verified frozen content of `version`; None for a version frozen
+    before content freezing (no content and no fingerprint); `_ALTERE`,
+    logged as an integrity error, when the stored content no longer
+    matches its fingerprint — or only one of the two is present."""
+    from app.services.contenu_bulletin import ContenuBulletinError, contenu_de_version
+
+    if version.contenu is None and version.empreinte is None:
         return None
     try:
-        return ligne_corrigee(contenu_de_version(precedente), contenu_de_version(version))
+        return contenu_de_version(version)
     except ContenuBulletinError as error:
         logger.error("Intégrité du bulletin figé : %s", error)
-        return None
+        return _ALTERE
 
 
 def peut_gerer_grille(user) -> bool:

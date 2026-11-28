@@ -176,6 +176,7 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
             "annee": klass.academic_year.label,
         },
         "periode": {"id": period.id, "nom": period.name},
+        "precision_pourcentage": decimales,
         "colonnes": [
             {
                 "id": c.id,
@@ -257,11 +258,23 @@ def contenu_de_version(version) -> dict:
 def ligne_corrigee(avant: dict, apres: dict) -> int | None:
     """The single grid line whose grades differ between two frozen
     contents, or None when the correction cannot be pinned to exactly one
-    line: structure, presentation, enrolled students or their identity
-    changed, or grades changed on zero or several lines. Totals, ranks and
-    percentages are derived from the grades and are not compared."""
-    structure = ("schema", "classe", "periode", "colonnes", "presentation")
+    line: structure, presentation, the frozen percentage precision,
+    enrolled students or their identity changed, or grades changed on
+    zero or several lines. When in doubt, None.
+
+    Totals, ranks and percentage values are derived from the grades and
+    are not compared — but the precision they are displayed with is: it
+    comes from the tenant configuration, so a correction that changes it
+    is class-scope, never a single course's. It is compared both as the
+    frozen `precision_pourcentage` and as the number of decimals of every
+    frozen `pourcentage_affiche`, so a content frozen before that key
+    existed is covered too."""
+    structure = (
+        "schema", "classe", "periode", "precision_pourcentage", "colonnes", "presentation",
+    )
     if any(avant.get(cle) != apres.get(cle) for cle in structure):
+        return None
+    if _decimales_affichees(avant) != _decimales_affichees(apres):
         return None
     eleves_avant = {e["inscription_id"]: e for e in avant.get("eleves", [])}
     eleves_apres = {e["inscription_id"]: e for e in apres.get("eleves", [])}
@@ -282,6 +295,16 @@ def ligne_corrigee(avant: dict, apres: dict) -> int | None:
             if cotes_avant.get(ligne) != cotes_apres.get(ligne)
         )
     return int(next(iter(lignes))) if len(lignes) == 1 else None
+
+
+def _decimales_affichees(contenu: dict) -> set[int]:
+    """Every number of decimals used by a frozen `pourcentage_affiche`."""
+    decimales = set()
+    for eleve in contenu.get("eleves", []):
+        affiche = eleve.get("total", {}).get("pourcentage_affiche")
+        if affiche is not None:
+            decimales.add(-Decimal(affiche).as_tuple().exponent)
+    return decimales
 
 
 def _dec(value: str | None) -> Decimal | None:

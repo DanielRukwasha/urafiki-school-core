@@ -19,7 +19,18 @@ from app.services.calculation_strategies import (
 
 
 class IncompleteTenantConfigError(RuntimeError):
-    """Raised when a tenant's configuration is missing or incomplete."""
+    """Raised when a tenant's configuration is missing, incomplete or out
+    of its supported domain."""
+
+
+# Supported domain of `TenantConfig.percentage_decimal_places`. The column
+# is a plain integer; outside this range a percentage cannot be rounded
+# reliably within Python's default Decimal context (28 significant digits:
+# 75 with 30 decimals raises InvalidOperation), and no school report
+# needs more. A stored value outside it is a configuration error, refused
+# explicitly — never clamped to a silent default (invariant 2).
+MIN_PERCENTAGE_DECIMAL_PLACES = 0
+MAX_PERCENTAGE_DECIMAL_PLACES = 6
 
 
 @dataclass(frozen=True)
@@ -48,6 +59,17 @@ def resolve_tenant_calculation(ecole_id: int) -> ResolvedTenantCalculation:
     if config.percentage_decimal_places is None:
         raise IncompleteTenantConfigError(
             f"ecole_id={ecole_id}: percentage_decimal_places is not set."
+        )
+    decimales = config.percentage_decimal_places
+    if (
+        isinstance(decimales, bool)
+        or not isinstance(decimales, int)
+        or not MIN_PERCENTAGE_DECIMAL_PLACES <= decimales <= MAX_PERCENTAGE_DECIMAL_PLACES
+    ):
+        raise IncompleteTenantConfigError(
+            f"ecole_id={ecole_id}: percentage_decimal_places={decimales!r} is outside "
+            f"the supported range {MIN_PERCENTAGE_DECIMAL_PLACES}–"
+            f"{MAX_PERCENTAGE_DECIMAL_PLACES}."
         )
 
     try:
