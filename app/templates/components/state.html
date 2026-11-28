@@ -1,0 +1,6 @@
+{% macro state_badge(state, label) -%}
+<span class="state-badge state-{{ state|default('unknown')|lower|replace('_', '-') }}" role="status">
+  <span aria-hidden="true">{% if state in ['PUBLISHED', 'published', 'complete'] %}✓{% elif state in ['SUBMITTED', 'submitted', 'incomplete'] %}◷{% elif state in ['CONSOLIDATED', 'consolidated', 'VALIDATED', 'validated'] %}•{% else %}!{% endif %}</span>
+  {{ label }}
+</span>
+{%- endmacro %}

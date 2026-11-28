@@ -31,7 +31,25 @@
     {% if report_layout.legal_text %}<p class="legal-text">{{ report_layout.legal_text }}</p>{% endif %}
     {% if report_layout.signatures %}<div class="signatures">{% for signature in report_layout.signatures %}<div>{{ signature }}</div>{% endfor %}</div>{% endif %}
   {% endmacro %}
-  {% if kind == 'bulletins' %}
+  {% if report_document %}
+    {% if kind == 'bulletins' %}
+      {% for learner in report_document.learners %}
+      <section class="report report-density-{{ report_document.density|default('regular') }}">
+        {{ header(report_document.title|default(labels.bulletin_title)) }}
+        <div class="meta"><h2>{{ learner.identity.label }}</h2>{% if learner.identity.reference %}<p>{{ learner.identity.reference }}</p>{% endif %}{% if learner.period_label %}<p>{{ learner.period_label }}</p>{% endif %}</div>
+        <table class="descriptive-report"><thead><tr><th scope="col">{{ report_document.course_label|default(labels.course) }}</th>{% for column in report_document.period_columns %}<th scope="col" class="numeric">{{ column.label }}</th>{% endfor %}<th scope="col">{{ report_document.total_label|default(labels.total) }}</th></tr></thead>
+          <tbody>{% for group in learner.groups %}
+            <tr class="group-heading"><th scope="rowgroup" colspan="{{ report_document.period_columns|length + 2 }}">{{ group.label }}{% if group.included is defined and not group.included %} <span class="not-counted">({{ group.exclusion_label|default(labels.not_counted) }})</span>{% endif %}</th></tr>
+            {% for line in group.lines %}<tr class="course-line{% if line.included is defined and not line.included %} not-counted-row{% endif %}"><th scope="row">{{ line.label }}{% if line.code %}<small>{{ line.code }}</small>{% endif %}{% if line.note %}<small>{{ line.note }}</small>{% endif %}</th>{% for value in line.periods %}<td class="numeric">{% if value.appreciation is defined and value.appreciation is not none %}{{ value.appreciation }}{% elif value.display is defined %}{{ value.display }}{% elif value.value is defined %}{{ value.value }}{% else %}—{% endif %}{% if value.maximum is defined and value.maximum is not none %}<small class="maximum"> / {{ value.maximum }}</small>{% endif %}</td>{% endfor %}<td class="numeric">{% if line.total is defined and line.total is not none %}{{ line.total }}{% elif line.included is defined and not line.included %}{{ line.exclusion_label|default(labels.not_counted) }}{% else %}—{% endif %}</td></tr>{% endfor %}
+            {% if group.subtotal %}<tr class="subtotal"><th scope="row">{{ group.subtotal.label|default(labels.subtotal) }}</th>{% for value in group.subtotal.periods|default([]) %}<td class="numeric">{{ value }}</td>{% endfor %}<td class="numeric">{{ group.subtotal.value|default('—') }}</td></tr>{% endif %}
+          {% endfor %}</tbody></table>
+        {% if learner.synthesis %}<div class="summary synthesis">{% for item in learner.synthesis %}<p><strong>{{ item.label }}</strong> : {{ item.value }}</p>{% endfor %}</div>{% endif %}{% if learner.notes %}<div class="note">{% for note in learner.notes %}<p>{{ note }}</p>{% endfor %}</div>{% endif %}{{ footer() }}
+      </section>
+      {% else %}{{ header(report_document.title|default(labels.bulletin_title)) }}<p>{{ labels.empty }}</p>{% endfor %}
+    {% else %}
+      {{ header(report_document.ranking.title|default(labels.ranking_title)) }}<table class="descriptive-report"><thead><tr>{% for column in report_document.ranking.columns %}<th scope="col">{{ column.label }}</th>{% endfor %}</tr></thead><tbody>{% for row in report_document.ranking.rows %}<tr>{% for cell in row.cells %}<td class="{{ 'numeric' if cell.numeric else '' }}">{{ cell.value }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ report_document.ranking.columns|length }}">{{ labels.empty }}</td></tr>{% endfor %}</tbody></table>{% if report_document.ranking.notes %}<p class="note">{% for note in report_document.ranking.notes %}{{ note }}{% endfor %}</p>{% endif %}{{ footer() }}
+    {% endif %}
+  {% elif kind == 'bulletins' %}
     {% for row in rows %}
     <section class="report">
       {{ header(labels.bulletin_title) }}
@@ -52,7 +70,7 @@
             {% elif column == 'coefficient' %}{{ course.coefficient }}
             {% elif column == 'max_score' %}{{ course.max_score }}
             {% elif column == 'score' %}{{ grade.score if grade else '—' }}
-            {% elif column == 'weighted' %}{{ '%.2f'|format(grade.score * course.coefficient) if grade else '—' }}
+            {% elif column == 'weighted' %}{{ grade.weighted_points if grade and grade.weighted_points is defined else '—' }}
             {% endif %}
             </td>
           {% endfor %}</tr>

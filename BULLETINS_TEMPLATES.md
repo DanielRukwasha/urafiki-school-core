@@ -53,3 +53,11 @@ version et leur historique. AprÃ¨s fusion de la branche backend correspondante,
 il faudra raccorder ces endpoints, ajouter les confirmations de transition,
 tester l'isolation rÃ©elle de deux tenants et intÃ©grer la grille existante aux
 clÃ©s du tenant rÃ©solu.
+
+## Moteur descriptif multi-grilles
+
+Le template `portal/print.html` accepte aussi `report_document`, structure pure de rendu fournie par le serveur. Il ne connaît aucun niveau, groupe, cours ou nombre de périodes. La structure contient `density`, `title`, `period_columns`, `learners`, puis pour chaque élève des `groups`, `lines`, `periods`, `subtotal`, `synthesis` et `notes`. Chaque colonne et chaque libellé sont fournis par le serveur.
+
+Toutes les valeurs numériques (`display`, `total`, `subtotal`, rangs et synthèses) sont déjà produites par le serveur. Une ligne d’appréciation fournit `appreciation` et ne fournit pas de maximum. Une ligne ou un groupe exclu du total fournit `included: false` et un libellé explicite ; le rendu ne dépend jamais de la couleur seule. Les groupes et les sous-totaux sont protégés par `break-inside: avoid`, les en-têtes de tableau sont répétés par WeasyPrint, et la classe de densité est choisie côté serveur pour les bulletins longs.
+
+Le contexte Flask peut injecter cette structure dans `g.report_document`. L’adaptateur de route la transmet telle quelle à Jinja ; il ne complète ni ne calcule de champ. En l’absence de cette structure, le rendu historique reste disponible pendant la migration du contrat.
