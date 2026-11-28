@@ -19,7 +19,6 @@ from app.models.grading import Grade
 from app.models.grille import GrilleCoursLigne, GrilleCoursLigneMaximum, GroupeCours
 from app.models.institution import Institution
 from app.models.journal import SensitiveReadKind, SensitiveReadLog
-from app.models.tenant_config import TenantConfig
 from app.models.user import RoleEnum
 from app.services.contenu_bulletin import ContenuBulletinError, contenu_de_version, serialiser
 
@@ -99,24 +98,18 @@ def test_submitted_consolidation_does_not_log_a_bulletin_read(classe, client):
     ).count()
 
 
-def test_official_bulletin_keeps_the_configured_precision(classe, client, db):
+def test_official_bulletin_keeps_the_frozen_decimal_precision(classe, client, db):
     grade = _grade(classe["enrollment"], classe["ligne"], classe["period"])
     grade.score = Decimal("12.50")
-    config = TenantConfig.query.execution_options(skip_tenant_filter=True).filter_by(
-        ecole_id=grade.ecole_id
-    ).one()
-    config.percentage_decimal_places = 3
     db.session.commit()
     for action in ("submit", "consolidate", "validate", "publish"):
         assert client.post(f"{classe['base']}/consolidation/{action}").status_code == 302
 
-    config.percentage_decimal_places = 1
-    db.session.commit()
     status, html = _bulletin(client, classe)
     assert status == 200
     assert re.search(r">\s*12,50\s*</td>", html)
-    assert _affiche_pourcentage(html, "62,500")
-    assert json.loads(_versions()[0].contenu)["eleves"][0]["total"]["pourcentage_affiche"] == "62.500"
+    assert _affiche_pourcentage(html, "62,50")
+    assert json.loads(_versions()[0].contenu)["eleves"][0]["total"]["pourcentage_affiche"] == "62.50"
 
 
 def test_version_1_is_unchanged_after_grid_label_grade_and_school_changes(published, client, db):

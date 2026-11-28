@@ -53,7 +53,7 @@ def test_published_history_and_motivated_correction(client, published, db):
     assert read.ecole_id == published["class"].ecole_id
 
 
-def test_motif_is_only_sent_to_the_class_titulaire_and_affected_teacher(
+def test_motifs_are_restricted_to_class_scope_pending_backend(
     client, published, db, make_user, grille_ligne
 ):
     klass = published["class"]
@@ -123,7 +123,7 @@ def test_motif_is_only_sent_to_the_class_titulaire_and_affected_teacher(
     login_as(affected, affected_password)
     response = client.get(grid_url)
     assert response.status_code == 200
-    assert motif in response.get_data(as_text=True)
+    assert motif not in response.get_data(as_text=True)
     assert ambiguous not in response.get_data(as_text=True)
     assert motif not in client.get(base).get_data(as_text=True)
 

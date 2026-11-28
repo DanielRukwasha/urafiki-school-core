@@ -38,7 +38,6 @@ from app.services.grade_calculation_engine import (
     rank_students,
 )
 from app.services.grille_service import lignes_actives, maximum_pour_periode, resoudre_grille
-from app.services.tenant_calculation import IncompleteTenantConfigError, resolve_tenant_calculation
 
 SCHEMA_CONTENU = 1
 
@@ -120,11 +119,6 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
     bit."""
     from app.models.grading import Grade
 
-    try:
-        decimal_places = resolve_tenant_calculation(klass.ecole_id).percentage_decimal_places
-    except IncompleteTenantConfigError as error:
-        raise ContenuBulletinError(str(error)) from error
-
     columns = colonnes_grille(klass, period)
     enrollments = inscriptions_actives(klass)
     grades = {
@@ -202,7 +196,7 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
                     "possible": _decimal(total.weighted_possible),
                     "pourcentage": _decimal(total.percentage),
                     "pourcentage_affiche": _decimal(
-                        quantize_percentage(total.percentage, decimal_places)
+                        quantize_percentage(total.percentage)
                         if total.percentage is not None
                         else None
                     ),
@@ -248,34 +242,6 @@ def contenu_de_version(version) -> dict:
             "empreinte. Lecture refusée."
         )
     return json.loads(version.contenu)
-
-
-def cours_corrige(avant, apres) -> int | None:
-    """Identify a single grade-only correction from two verified snapshots."""
-    try:
-        ancien = contenu_de_version(avant)
-        nouveau = contenu_de_version(apres)
-        structure = ("schema", "classe", "periode", "colonnes", "presentation")
-        if any(ancien[key] != nouveau[key] for key in structure):
-            return None
-        anciens_eleves = {row["inscription_id"]: row for row in ancien["eleves"]}
-        nouveaux_eleves = {row["inscription_id"]: row for row in nouveau["eleves"]}
-        if anciens_eleves.keys() != nouveaux_eleves.keys():
-            return None
-        lignes = set()
-        for id_eleve, precedent in anciens_eleves.items():
-            courant = nouveaux_eleves[id_eleve]
-            if any(precedent[key] != courant[key] for key in ("nom_complet", "matricule")):
-                return None
-            anciennes_cotes = precedent["cotes"]
-            nouvelles_cotes = courant["cotes"]
-            lignes.update(
-                ligne for ligne in anciennes_cotes.keys() | nouvelles_cotes.keys()
-                if anciennes_cotes.get(ligne) != nouvelles_cotes.get(ligne)
-            )
-        return int(next(iter(lignes))) if len(lignes) == 1 else None
-    except (ContenuBulletinError, KeyError, TypeError, ValueError):
-        return None
 
 
 def _dec(value: str | None) -> Decimal | None:

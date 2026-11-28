@@ -45,7 +45,6 @@ from app.services.contenu_bulletin import (
     colonnes_grille,
     contenu_de_version,
     contexte_depuis_contenu,
-    cours_corrige,
     inscriptions_actives,
 )
 from app.services.grille_service import GrilleConfigError, lignes_actives, resoudre_grille
@@ -313,7 +312,7 @@ def grid(class_id, period_id):
     return render_template(
         "portal/grid.html",
         bulletin_versions=_published_versions(
-            ctx["klass"], _publication_for(class_id, period_id), ctx["courses"]
+            ctx["klass"], _publication_for(class_id, period_id)
         ),
         **ctx,
     )
@@ -563,31 +562,23 @@ def _publication_for(class_id, period_id):
     return PeriodPublication.query.filter_by(school_class_id=class_id, period_id=period_id).first()
 
 
-def _published_versions(klass, publication, courses=()):
+def _published_versions(klass, publication):
     from app.models.deliberation_workflow import BulletinVersion
 
     if publication is None or not publication.published:
         return []
-
-    class_scope = peut_lire_cotes_classe(current_user, klass)
-    assigned = set()
-    if not class_scope:
-        assigned = {course.id for course in courses if est_attributaire(current_user, klass, course)}
-        if not assigned:
-            return []
-    query = BulletinVersion.query.filter_by(publication_id=publication.id).options(
-        joinedload(BulletinVersion.auteur)
+    if not peut_lire_cotes_classe(current_user, klass):
+        return []
+    versions = (
+        BulletinVersion.query.filter_by(publication_id=publication.id)
+        .options(
+            joinedload(BulletinVersion.auteur),
+            defer(BulletinVersion.contenu),
+            defer(BulletinVersion.empreinte),
+        )
+        .order_by(BulletinVersion.numero.desc())
+        .all()
     )
-    if class_scope:
-        query = query.options(defer(BulletinVersion.contenu), defer(BulletinVersion.empreinte))
-    versions = query.order_by(BulletinVersion.numero.desc()).all()
-    if not class_scope:
-        by_id = {version.id: version for version in versions}
-        versions = [
-            version for version in versions
-            if version.corrige_version_id in by_id
-            and cours_corrige(by_id[version.corrige_version_id], version) in assigned
-        ]
     return [
         {
             "numero": version.numero,
