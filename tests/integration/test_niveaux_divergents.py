@@ -6,7 +6,10 @@ généricité du moteur, des sous-totaux ou du rendu n'est prouvée.
 
 Les grilles sont lues par le service réel (`colonnes_grille`), période
 par période, et non dans la spécification des fixtures : le test mesure
-ce que le moteur voit."""
+ce que le moteur voit.
+
+La divergence entre les deux écoles (calendrier, barème, règles) est
+vérifiée par `test_tenant_fixtures.py`."""
 
 import pytest
 
@@ -16,7 +19,7 @@ from tests.conftest import TENANT_A_COURSES, TENANT_A_NIVEAUX, build_niveaux
 
 EXIGENCES_PAR_GRILLE = ("maxima variables selon la période", "cours hors du total général",
                         "cours par appréciation")
-DIVERGENCES_ENTRE_NIVEAUX = ("nombre de cours", "nombre de groupes", "maxima par période")
+DIVERGENCES_ENTRE_NIVEAUX = ("nombre de cours", "nombre de groupes", "profils de maxima")
 
 
 def _mesure(app, institution, niveau_grid, periods):
@@ -24,12 +27,20 @@ def _mesure(app, institution, niveau_grid, periods):
         resolve_tenant()
         par_periode = [colonnes_grille(niveau_grid.school_class, period) for period in periods]
     colonnes = par_periode[0]
-    maxima = tuple(tuple(c.max_score for c in cols) for cols in par_periode)
+    # One profile per numeric course: its maxima over the periods, in
+    # order. The set of profiles does not depend on how many lines carry
+    # them, so two grids with different course counts but the same
+    # profiles are still reported as identical on this axis.
+    profils = frozenset(
+        tuple(cols[i].max_score for cols in par_periode)
+        for i, colonne in enumerate(colonnes)
+        if not colonne.is_appreciation
+    )
     return {
         "nombre de cours": len(colonnes),
         "nombre de groupes": len({c.groupe_id for c in colonnes}),
-        "maxima par période": maxima,
-        "maxima variables selon la période": len(set(maxima)) > 1,
+        "profils de maxima": profils,
+        "maxima variables selon la période": any(len(set(p)) > 1 for p in profils),
         "cours hors du total général": any(not c.included for c in colonnes),
         "cours par appréciation": any(c.is_appreciation for c in colonnes),
     }
@@ -67,16 +78,6 @@ def test_tenant_b_niveaux_diverge(app, tenant_b_world, tenant_b_niveaux):
     assert ecarts(mesures) == []
 
 
-def test_the_two_schools_do_not_share_their_grids(
-    app, tenant_a, tenant_a_structure, tenant_a_niveaux, tenant_b_world, tenant_b_niveaux
-):
-    a = {_mesure(app, tenant_a, g, tenant_a_structure)["maxima par période"]
-         for g in tenant_a_niveaux.values()}
-    b = {_mesure(app, tenant_b_world.institution, g, tenant_b_world.periods)["maxima par période"]
-         for g in tenant_b_niveaux.values()}
-    assert not a & b
-
-
 def test_identical_grids_are_reported(app, db, tenant_a, tenant_a_structure, academic_year,
                                       section):
     """Réfutation de #88 : ramener les deux niveaux à une grille identique
@@ -97,6 +98,35 @@ def test_identical_grids_are_reported(app, db, tenant_a, tenant_a_structure, aca
         assert f"niveaux identiques sur « {axe} »" in problemes
     with pytest.raises(AssertionError):
         assert problemes == []
+
+
+def test_same_maxima_profiles_are_reported_whatever_the_course_count(
+    app, db, tenant_a, tenant_a_structure, academic_year, section
+):
+    """Réfutation (revue Frontend de #131) : deux niveaux aux nombres de
+    cours et de groupes différents, mais dont chaque cours numérique suit
+    le même profil 20/20/40. Seul l'axe des maxima doit être signalé."""
+    profil = ("20", "20", "40")
+    grids = build_niveaux(
+        db, ecole_id=tenant_a.id, academic_year_id=academic_year.id, section_id=section.id,
+        periods=tenant_a_structure, courses=TENANT_A_COURSES,
+        spec={
+            "5eme": {"ordre": 5, "groupes": [
+                ("Langues", True, [("FRA", "4", profil, True), ("ANG", "2", profil, True)]),
+                ("Sciences", True, [("ALG", "5", profil, True), ("REL", "1", profil, False)]),
+                ("Vie scolaire", True, [("CON", "1", None, True)]),
+            ]},
+            "3eme": {"ordre": 3, "groupes": [
+                ("Langues", True, [("FRA", "3", profil, True), ("LAT", "1", profil, False),
+                                   ("CON", "1", None, True)]),
+            ]},
+        },
+    )
+    mesures = {
+        libelle: _mesure(app, tenant_a, grid, tenant_a_structure)
+        for libelle, grid in grids.items()
+    }
+    assert ecarts(mesures) == ["niveaux identiques sur « profils de maxima »"]
 
 
 def test_a_grid_without_exclusion_or_appreciation_is_reported(
