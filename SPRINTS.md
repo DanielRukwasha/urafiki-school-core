@@ -23,8 +23,7 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 10 | Backend | feat/backend-conformite-socle | fusionné | 2026-11-23 | #55 | Mise en conformité du socle avec les invariants (jalon « Conformité du socle ») |
 | 12 | Backend | feat/backend-conformite-socle | fusionné | 2026-11-23 | #55 | Bloquants de la revue Frontend de #55 : contenu figé des versions, langue sans catalogue, instantané de sauvegarde partagé ; puis revue de suivi : lecture figée sans grille vivante, lien PDF versionné, garde du journal, CI épinglée (n° 11 : sprint Frontend sur #56) |
 | 13 | Backend | fix/404-hors-perimetre | livré | 2026-11-28 | #125 | #76 : 404 pour les refus hors périmètre (`roles_required`, session d'une autre école), 403 du compte désactivé rendu atteignable et documenté |
-
-| 13 | Frontend | fix/frontend-badges-etat | livr? | 2026-11-27 | #113 | Contrat d??tat des badges de consolidation et accessibilit? |
+| 14 | Frontend | fix/frontend-badges-etat | livré | 2026-11-27 | #127 | Contrat d’état des badges de consolidation et accessibilité |
 
 ## Notes
 

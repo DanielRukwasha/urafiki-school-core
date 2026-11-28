@@ -10,7 +10,7 @@ def payload():
         "class_name": "Classe A",
         "period_name": "Semestre 1",
         "academic_year": "2026-2027",
-        "courses": [{"name": "Course", "status": "INCOMPLETE", "status_label": "Incomplet"}],
+        "courses": [{"name": "Course", "status": "incomplete", "status_label": "Incomplet"}],
         "students": [],
         "decisions": [{"student_name": "Student", "automatic_decision": "ADMITTED"}],
         "distribution": [{"label": "10-12", "count": 2, "percent": "50 %"}],
@@ -40,9 +40,10 @@ def test_invalid_server_payload_fails_closed(broken):
         normalize_consolidation(broken)
 
 
-def test_unknown_course_status_is_rejected():
+@pytest.mark.parametrize("status", ["future-status", "INCOMPLETE"])
+def test_unknown_course_status_is_rejected(status):
     raw = payload()
-    raw["courses"][0]["status"] = "future-status"
+    raw["courses"][0]["status"] = status
     with pytest.raises(ConsolidationPayloadError, match="unknown course.status"):
         normalize_consolidation(raw)
 

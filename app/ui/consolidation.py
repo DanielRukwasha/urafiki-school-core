@@ -44,7 +44,7 @@ def normalize_consolidation(payload):
         if not isinstance(item, dict):
             raise ConsolidationPayloadError("course summary must be an object")
         _text(item.get("name"), "course.name", True)
-        status = _text(item.get("status"), "course.status", True).lower()
+        status = _text(item.get("status"), "course.status", True)
         if status not in COURSE_STATUS_VARIANTS:
             raise ConsolidationPayloadError(f"unknown course.status: {status!r}")
         label = _text(item.get("status_label"), "course.status_label", True)
