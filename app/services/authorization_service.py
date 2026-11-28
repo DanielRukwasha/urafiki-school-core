@@ -49,20 +49,63 @@ def _is_direction(user) -> bool:
 
 
 def titulaire_effectif(school_class, at=None):
-    """The teacher currently holding titulaire rights for this class,
-    honoring an ACTIVE delegation covering `at` (default: now) ahead of
-    the class's recorded titulaire. Returns None if neither exists."""
-    at = at or utcnow()
-    delegation = (
-        DelegationTitulariat.query.filter_by(
-            school_class_id=school_class.id, statut=StatutDelegation.ACTIVE
+    """The teacher holding titulaire rights for this class at `at`.
+
+    Without `at` (the present), an ACTIVE delegation covering now takes
+    precedence over the class's current titulaire (`SchoolClass.titulaire`,
+    the denormalized "right now" value).
+
+    With an explicit `at`, the answer is read from the record, never from
+    the present: the `TitulaireHistorique` row covering `at` is resolved
+    first (half-open interval: `date_debut <= at < date_fin`, `date_fin`
+    NULL meaning still current); only then does a delegation that was in
+    force at `at` take precedence over that titulaire. A date that no
+    history row covers returns None — never the current titulaire, which
+    would rewrite the past, and never a delegate: a delegation transfers
+    the rights of a recorded titulaire, so without one there is nothing
+    to delegate.
+
+    Returns None if nobody holds the rights."""
+    if at is None:
+        delegation = _delegation_en_vigueur(school_class, utcnow(), present=True)
+        if delegation is not None:
+            return delegation.delegataire
+        return school_class.titulaire
+
+    ligne = (
+        TitulaireHistorique.query.filter_by(school_class_id=school_class.id)
+        .filter(
+            TitulaireHistorique.date_debut <= at,
+            db.or_(TitulaireHistorique.date_fin.is_(None), TitulaireHistorique.date_fin > at),
         )
-        .filter(DelegationTitulariat.date_debut <= at, DelegationTitulariat.date_fin >= at)
+        .order_by(TitulaireHistorique.date_debut.desc())
         .first()
     )
-    if delegation is not None:
-        return delegation.delegataire
-    return school_class.titulaire
+    if ligne is None:
+        return None
+    delegation = _delegation_en_vigueur(school_class, at, present=False)
+    return delegation.delegataire if delegation is not None else ligne.teacher
+
+
+def _delegation_en_vigueur(school_class, at, *, present):
+    """The delegation covering `at`. In the present, only an ACTIVE one
+    counts. For a past date, a delegation that has since expired was in
+    force during its window too; a revoked one counts only if it was
+    revoked strictly after `at` (at the exact revocation instant it no
+    longer applies)."""
+    query = DelegationTitulariat.query.filter_by(school_class_id=school_class.id).filter(
+        DelegationTitulariat.date_debut <= at, DelegationTitulariat.date_fin >= at
+    )
+    if present:
+        query = query.filter(DelegationTitulariat.statut == StatutDelegation.ACTIVE)
+    else:
+        query = query.filter(
+            db.or_(
+                DelegationTitulariat.statut != StatutDelegation.REVOQUEE,
+                DelegationTitulariat.revoked_at > at,
+            )
+        )
+    return query.order_by(DelegationTitulariat.date_debut.desc()).first()
 
 
 def est_titulaire_effectif(user, school_class, at=None) -> bool:

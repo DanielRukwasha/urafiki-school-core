@@ -22,8 +22,9 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 9 | Frontend | feat/frontend-rendu-et-navigation | livré | 2026-09-23 | #51 | Rendu des bulletins décrit par le serveur |
 | 10 | Backend | feat/backend-conformite-socle | fusionné | 2026-11-23 | #55 | Mise en conformité du socle avec les invariants (jalon « Conformité du socle ») |
 | 12 | Backend | feat/backend-conformite-socle | fusionné | 2026-11-23 | #55 | Bloquants de la revue Frontend de #55 : contenu figé des versions, langue sans catalogue, instantané de sauvegarde partagé ; puis revue de suivi : lecture figée sans grille vivante, lien PDF versionné, garde du journal, CI épinglée (n° 11 : sprint Frontend sur #56) |
-| 13 | Backend | fix/404-hors-perimetre | livré | 2026-11-28 | #125 | #76 : 404 pour les refus hors périmètre (`roles_required`, session d'une autre école), 403 du compte désactivé rendu atteignable et documenté |
+| 13 | Backend | fix/404-hors-perimetre | fusionné | 2026-11-28 | #125 | #76 : 404 pour les refus hors périmètre (`roles_required`, session d'une autre école), 403 du compte désactivé rendu atteignable et documenté |
 | 14 | Frontend | fix/frontend-badges-etat | livré | 2026-11-27 | #127 | Contrat d’état des badges de consolidation et accessibilité |
+| 15 | Backend | fix/titulaire-a-date | livré | 2026-11-28 | #128 | #84 : titulaire à une date passée lu dans `TitulaireHistorique`, délégation en vigueur à cette date |
 
 ## Notes
 
