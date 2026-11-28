@@ -1,0 +1,31 @@
+{% macro bulletin_history(bulletin_versions) -%}
+  {% if bulletin_versions %}
+    <section class="panel" aria-labelledby="versions-title">
+      <h2 id="versions-title">{{ _('Historique des versions publiées') }}</h2>
+      <p>{{ _('Une publication est irréversible. Chaque correction crée une nouvelle version ; les versions précédentes restent conservées.') }}</p>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">{{ _('Versions, motifs et auteurs') }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ _('Version') }}</th>
+              <th scope="col">{{ _('Motif') }}</th>
+              <th scope="col">{{ _('Auteur') }}</th>
+              <th scope="col">{{ _('Date de publication') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for version in bulletin_versions %}
+              <tr data-bulletin-version="{{ version.numero }}">
+                <th scope="row">{{ version.numero }}</th>
+                <td>{{ version.motif if version.motif else _('Première publication') }}</td>
+                <td>{{ version.auteur }}</td>
+                <td><time datetime="{{ version.publie_le.isoformat() }}">{{ version.publie_le|datetimeformat }}</time></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+{%- endmacro %}

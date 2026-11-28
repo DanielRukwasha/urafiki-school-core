@@ -47,7 +47,7 @@ from app.models.grading import Grade, GradeAuditAction, GradeAuditLog
 from app.models.mixins import utcnow
 from app.models.student import Enrollment
 from app.models.tenant_config import TenantConfig
-from app.services.contenu_bulletin import calculer_contenu, serialiser
+from app.services.contenu_bulletin import ContenuBulletinError, calculer_contenu, serialiser
 from app.services.grade_calculation_engine import (
     CourseGradeInput,
     compute_period_total,
@@ -141,7 +141,7 @@ def _version_figee(publication, *, numero, auteur, publie_le, motif=None, corrig
     period = db.session.get(EvaluationPeriod, publication.period_id)
     try:
         contenu = calculer_contenu(klass, period, presentation_configuration())
-    except GrilleConfigError as exc:
+    except (ContenuBulletinError, GrilleConfigError) as exc:
         raise TransitionError(f"Publication impossible : {exc}") from exc
     texte, empreinte = serialiser(contenu)
     if corrigee is not None and corrigee.empreinte == empreinte:

@@ -15,6 +15,7 @@ from flask import Blueprint, abort, g, make_response, redirect, render_template,
 from flask_babel import get_locale
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer, joinedload
 
 from app.extensions import db
 from app.models.academic import EvaluationPeriod, SchoolClass
@@ -33,6 +34,7 @@ from app.services.authorization_service import (
     peut_encoder_ligne,
     peut_lire_cotes_classe,
     peut_soumettre_classe,
+    peut_valider_bulletin,
     require_direction,
     require_lecture_classe,
 )
@@ -43,6 +45,7 @@ from app.services.contenu_bulletin import (
     colonnes_grille,
     contenu_de_version,
     contexte_depuis_contenu,
+    cours_corrige,
     inscriptions_actives,
 )
 from app.services.grille_service import GrilleConfigError, lignes_actives, resoudre_grille
@@ -62,8 +65,9 @@ def interface_language():
 @bp.app_template_filter("interface_decimal")
 def interface_decimal(value):
     """Localize an existing server Decimal without another rounding step."""
-    return format_decimal(value, locale=get_locale(), decimal_quantization=False)
-
+    decimal_places = max(0, -value.as_tuple().exponent)
+    pattern = "#,##0" + ("." + "0" * decimal_places if decimal_places else "")
+    return format_decimal(value, format=pattern, locale=get_locale(), decimal_quantization=False)
 
 
 def active(query, model):
@@ -305,7 +309,14 @@ def assignments():
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/grid")
 @roles_required(*EDIT_ROLES)
 def grid(class_id, period_id):
-    return render_template("portal/grid.html", **context(class_id, period_id))
+    ctx = context(class_id, period_id)
+    return render_template(
+        "portal/grid.html",
+        bulletin_versions=_published_versions(
+            ctx["klass"], _publication_for(class_id, period_id), ctx["courses"]
+        ),
+        **ctx,
+    )
 
 
 @bp.post("/classes/<int:class_id>/periods/<int:period_id>/sync")
@@ -546,15 +557,46 @@ def _server_consolidation_payload(class_id, period_id):
         abort(502, description="Réponse de consolidation invalide.")
 
 
-@journaliser_lecture(SensitiveReadKind.BULLETIN_CONSULTATION)
-def _published_versions(publication_id):
-    """Produce the version history through the Backend sensitive-read journal."""
+def _publication_for(class_id, period_id):
+    from app.models.deliberation_workflow import PeriodPublication
+
+    return PeriodPublication.query.filter_by(school_class_id=class_id, period_id=period_id).first()
+
+
+def _published_versions(klass, publication, courses=()):
     from app.models.deliberation_workflow import BulletinVersion
 
-    return (
-        BulletinVersion.query.filter_by(publication_id=publication_id)
-        .order_by(BulletinVersion.numero.desc()).all()
+    if publication is None or not publication.published:
+        return []
+
+    class_scope = peut_lire_cotes_classe(current_user, klass)
+    assigned = set()
+    if not class_scope:
+        assigned = {course.id for course in courses if est_attributaire(current_user, klass, course)}
+        if not assigned:
+            return []
+    query = BulletinVersion.query.filter_by(publication_id=publication.id).options(
+        joinedload(BulletinVersion.auteur)
     )
+    if class_scope:
+        query = query.options(defer(BulletinVersion.contenu), defer(BulletinVersion.empreinte))
+    versions = query.order_by(BulletinVersion.numero.desc()).all()
+    if not class_scope:
+        by_id = {version.id: version for version in versions}
+        versions = [
+            version for version in versions
+            if version.corrige_version_id in by_id
+            and cours_corrige(by_id[version.corrige_version_id], version) in assigned
+        ]
+    return [
+        {
+            "numero": version.numero,
+            "motif": version.motif,
+            "auteur": version.auteur.full_name,
+            "publie_le": version.publie_le,
+        }
+        for version in versions
+    ]
 
 
 @bp.get("/classes/<int:class_id>/periods/<int:period_id>/consolidation")
@@ -563,25 +605,18 @@ def consolidation(class_id, period_id):
     klass = db.get_or_404(SchoolClass, class_id)
     require_lecture_classe(current_user, klass)
     payload = _server_consolidation_payload(class_id, period_id)
-    from app.models.deliberation_workflow import PeriodPublication
     from app.services.deliberation_service import MOTIF_CORRECTION_MIN
 
-    publication = PeriodPublication.query.filter_by(
-        school_class_id=class_id, period_id=period_id
-    ).first()
-    versions = (
-        _published_versions(publication.id)
-        if publication else []
-    )
+    publication = _publication_for(class_id, period_id)
     correction_url = (
         url_for("portal.publish_correction", class_id=class_id, period_id=period_id)
-        if publication and publication.published and current_user.role == RoleEnum.DIRECTION
+        if publication and publication.published and peut_valider_bulletin(current_user)
         else None
     )
     return render_template(
         "portal/consolidation.html",
         consolidation=payload,
-        bulletin_versions=versions,
+        bulletin_versions=_published_versions(klass, publication),
         correction_url=correction_url,
         correction_min_length=MOTIF_CORRECTION_MIN,
         deliberation_url=url_for("portal.deliberation", class_id=class_id, period_id=period_id),

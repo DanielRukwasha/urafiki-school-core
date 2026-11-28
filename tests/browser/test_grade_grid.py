@@ -204,9 +204,10 @@ def test_edit_during_save_keeps_newer_value(browser_portal):
     playwright.expect(page.locator(".grade-input").first).to_have_value("18.00")
 
 
-def test_failed_request_keeps_draft_and_marks_cell(browser_portal):
+@pytest.mark.parametrize("status", [400, 404])
+def test_failed_request_keeps_draft_and_marks_cell(browser_portal, status):
     page, _, _, _ = browser_portal
-    page.route("**/sync", lambda route: route.fulfill(status=400, body="Expired CSRF"))
+    page.route("**/sync", lambda route: route.fulfill(status=status))
     page.locator(".grade-input").first.fill("11")
     playwright.expect(page.locator(".grade-input").first).to_have_attribute("aria-invalid", "true")
     assert page.evaluate("Object.keys(localStorage).some(k => k.startsWith('urafiki:'))")

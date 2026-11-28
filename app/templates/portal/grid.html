@@ -1,4 +1,5 @@
 {% extends "base.html" %}{% from "components/macros.html" import heading %}
+{% from "components/bulletin_history.html" import bulletin_history with context %}
 {% block title %}{{ _("Saisie · %(class_name)s", class_name=klass.name) }}{% endblock %}
 {% block content %}
 <a href="{{ url_for('portal.dashboard') }}">{{ _("← Classes et périodes") }}</a>
@@ -19,35 +20,37 @@
 <span class="cell-status" id="status-{{ key }}">{{ _("Lecture seule") if not_mine else (_("Verrouillée") if locked else (_("Enregistré") if grade else _("Non saisie"))) }}</span>{% if not locked %}<button type="button" class="secondary discard-cell" data-key="{{ key }}" hidden>{{ _("Reprendre la cote serveur") }}</button>{% endif %}</td>{% endfor %}</tr>
 {% else %}<tr><td colspan="{{ courses|length + 1 }}">{{ _("Aucun élève inscrit dans cette classe.") }}</td></tr>{% endfor %}</tbody></table></div>
 {% if editable_course_ids %}<form id="sync-form" hx-post="{{ url_for('portal.sync', class_id=klass.id, period_id=period.id) }}" hx-trigger="sync-grades" hx-swap="none" hx-target="#sync-response"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="changes" id="sync-changes"></form><div id="sync-response" hidden></div>{% endif %}
-</div>{% endblock %}
+</div>
+{{ bulletin_history(bulletin_versions) }}
+{% endblock %}
 {% block scripts %}<script type="application/json" id="grade-grid-messages">{{ {
-"m0": _("Toutes les cotes sont enregistrées"),
-"m1": _("Enregistrement…"),
-"m2": _("Cote verrouillée. Exportez ou abandonnez le brouillon."),
-"m3": _("Brouillon à vérifier"),
-"m4": _("Brouillon local restauré"),
-"m5": _("Brouillon local"),
-"m6": _("Brouillon en mémoire"),
-"m7": _("Verrouillée"),
-"m8": _("Cote serveur restaurée"),
-"m9": _("Enregistré sur le serveur"),
-"m10": _("Session ou requête refusée. Reconnectez-vous puis rechargez cette page ; vos brouillons sont conservés."),
-"m11": _("Connexion interrompue. Brouillon conservé."),
-"m12": _("Rechargez la page après reconnexion pour reprendre les brouillons."),
-"m13": _("Classe"),
-"m14": _("Période"),
-"m15": _("Cellule"),
-"m16": _("Cote"),
-"m17": _("Base serveur"),
-"m18": _("La synchronisation ne peut pas démarrer. Rechargez la page ; exportez vos brouillons si nécessaire."),
+"allSaved": _("Toutes les cotes sont enregistrées"),
+"saving": _("Enregistrement…"),
+"lockedDraft": _("Cote verrouillée. Exportez ou abandonnez le brouillon."),
+"draftNeedsReview": _("Brouillon à vérifier"),
+"draftRestored": _("Brouillon local restauré"),
+"localDraft": _("Brouillon local"),
+"memoryDraft": _("Brouillon en mémoire"),
+"locked": _("Verrouillée"),
+"serverValueRestored": _("Cote serveur restaurée"),
+"savedOnServer": _("Enregistré sur le serveur"),
+"requestRejected": _("Session ou requête refusée. Reconnectez-vous puis rechargez cette page ; vos brouillons sont conservés."),
+"connectionInterrupted": _("Connexion interrompue. Brouillon conservé."),
+"reloadToResume": _("Rechargez la page après reconnexion pour reprendre les brouillons."),
+"csvClass": _("Classe"),
+"csvPeriod": _("Période"),
+"csvCell": _("Cellule"),
+"csvGrade": _("Cote"),
+"csvServerBase": _("Base serveur"),
+"syncUnavailable": _("La synchronisation ne peut pas démarrer. Rechargez la page ; exportez vos brouillons si nécessaire."),
 "pending": _("Cotes en attente : %(count)s%(connection)s", count="%(count)s", connection="%(connection)s"),
 "saving_count": _("Cotes en cours d’enregistrement : %(count)s", count="%(count)s")
 ,
 "offline": _(" · Hors connexion"),
-"extra2": _("Stockage local indisponible. Gardez cette page ouverte et exportez vos brouillons avant de quitter."),
-"extra4": _("Confirmation manquante. Nouvel essai…"),
-"extra5": _("Nouvelle modification en attente"),
-"extra7": _("Cette grille est ouverte dans un autre onglet. Fermez cet onglet puis rechargez ici."),
-"extra8": _("La saisie requiert un navigateur moderne et une connexion HTTPS.")
+"storageUnavailable": _("Stockage local indisponible. Gardez cette page ouverte et exportez vos brouillons avant de quitter."),
+"confirmationMissing": _("Confirmation manquante. Nouvel essai…"),
+"newEditPending": _("Nouvelle modification en attente"),
+"gridOpenInAnotherTab": _("Cette grille est ouverte dans un autre onglet. Fermez cet onglet puis rechargez ici."),
+"browserUnsupported": _("La saisie requiert un navigateur moderne et une connexion HTTPS.")
 }|tojson }}</script><script src="{{ url_for('static', filename='vendor/htmx.min.js') }}" defer></script><script src="{{ url_for('static', filename='js/grade-grid.js') }}" defer></script>{% endblock %}
 

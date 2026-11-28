@@ -382,11 +382,11 @@ def test_audit_log_merges_grade_and_deliberation_events_with_filters(
     # check the results table via the caption's row count, not a blanket
     # substring search over the whole page.
     all_entries = client.get("/portal/audit").data
-    assert "2 événements".encode() in all_entries
+    assert "2 événements</caption>".encode() in all_entries
 
     only_overrides = client.get("/portal/audit?action=MANUAL_OVERRIDE").data
-    assert "1 événement".encode() in only_overrides
+    assert "1 événement</caption>".encode() in only_overrides
     assert b"D\xc3\xa9cision manuelle" in only_overrides
 
     no_such_student = client.get("/portal/audit?student=Personne-Inexistante").data
-    assert "0 événement".encode() in no_such_student
+    assert "0 événement</caption>".encode() in no_such_student
