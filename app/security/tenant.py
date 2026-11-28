@@ -4,9 +4,9 @@
 or a cookie a client can set. It is deduced exclusively from the request's
 domain (via `Institution.domain` / `Institution.custom_domain`), then
 cross-checked against the authenticated account's own `ecole_id`. Any
-divergence between the two is rejected — the session is dropped and the
-event is written to that tenant's `TenantAccessAuditLog` — never silently
-trusted.
+divergence between the two is rejected with a bare 404 — the session is
+dropped and the event is written to that tenant's `TenantAccessAuditLog` —
+never silently trusted.
 
 A request whose domain resolves to no active tenant is rejected outright
 with an explicit error; there is no silent fallback tenant.
@@ -72,7 +72,9 @@ def _reject_cross_tenant_session(resolved_ecole_id: int) -> None:
     db.session.add(entry)
     db.session.commit()
     logout_user()
-    abort(403, description="Session invalide pour ce domaine.")
+    # Bare 404, no description: the response must not tell a session from
+    # another school that this domain, or the requested path, exists.
+    abort(404)
 
 
 def init_tenant_resolution(app: Flask) -> None:

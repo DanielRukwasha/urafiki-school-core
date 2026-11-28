@@ -1,9 +1,9 @@
 """Portal contracts: authorization, validation, conflicts, audit and rendering.
 
-Out-of-scope contextual access (wrong/unassigned class or grid line) is a
-404, never a 403 — 403 is reserved for @roles_required's coarse "this
-role is never allowed on this endpoint at all" gate. See
-app.services.authorization_service's module docstring."""
+Out-of-scope access is a 404, never a 403 — whether it is contextual
+(wrong/unassigned class or grid line) or the coarse @roles_required gate
+("this role is never allowed on this endpoint at all"). The only 403 left
+is the deactivated account (PERMISSIONS.md, « 403 légitimes »)."""
 
 import json
 from decimal import Decimal
@@ -141,8 +141,8 @@ def test_teacher_only_sees_assigned_courses(client, db, portal, make_user):
     db.session.commit()
     assert client.get(portal["url"] + "/grid").status_code == 200
     assert save(client, portal).status_code == 200
-    assert client.get(portal["url"] + "/results").status_code == 403
-    assert client.get("/portal/assignments").status_code == 403
+    assert client.get(portal["url"] + "/results").status_code == 404
+    assert client.get("/portal/assignments").status_code == 404
 
 
 def test_secretariat_reads_results_but_cannot_encode(client, portal, make_user):
@@ -150,8 +150,69 @@ def test_secretariat_reads_results_but_cannot_encode(client, portal, make_user):
     client.get("/auth/logout")
     client.post("/auth/login", data={"email": user.email, "password": password})
     assert client.get(portal["url"] + "/results").status_code == 200
+    assert client.get(portal["url"] + "/grid").status_code == 404
+    assert save(client, portal).status_code == 404
+
+
+def _login_assigned_teacher(client, db, portal, make_user, email="assigned@example.com"):
+    teacher, password = make_user(email=email)
+    db.session.add(
+        TeacherAssignment(
+            teacher_id=teacher.id,
+            school_class_id=portal["school_class"].id,
+            grille_cours_ligne_id=portal["course"].id,
+        )
+    )
+    db.session.commit()
+    client.get("/auth/logout")
+    client.post("/auth/login", data={"email": teacher.email, "password": password})
+    return teacher
+
+
+@pytest.mark.parametrize(
+    "suffix", ["/results", "/print/bulletins", "/print/palmares", "/print/bulletins?format=pdf"]
+)
+def test_role_never_admitted_gets_404_not_403(client, db, portal, make_user, suffix):
+    # A teacher with a real link to the class (course assignment) still
+    # gets 404 on results / print_report, whose role gate never admits
+    # ENSEIGNANT: the response must not confirm that the resource exists.
+    _login_assigned_teacher(client, db, portal, make_user)
+    response = client.get(portal["url"] + suffix)
+    assert response.status_code == 404
+    assert "Accès refusé".encode() not in response.data
+
+
+def test_own_scope_is_never_404(client, db, portal, make_user):
+    # Regression guard for the 403 -> 404 conversion: every role still
+    # reaches what is in its own perimeter.
+    for path in ["/portal/", "/portal/assignments", portal["url"] + "/grid",
+                 portal["url"] + "/results", portal["url"] + "/print/bulletins"]:
+        assert client.get(path).status_code == 200, ("direction", path)
+
+    secretariat, password = make_user(email="secr@example.com", role=RoleEnum.SECRETARIAT)
+    client.get("/auth/logout")
+    client.post("/auth/login", data={"email": secretariat.email, "password": password})
+    for path in ["/portal/", portal["url"] + "/results", portal["url"] + "/print/bulletins"]:
+        assert client.get(path).status_code == 200, ("secretariat", path)
+
+    _login_assigned_teacher(client, db, portal, make_user)
+    for path in ["/portal/", portal["url"] + "/grid"]:
+        assert client.get(path).status_code == 200, ("enseignant", path)
+    assert save(client, portal).status_code == 200
+
+
+def test_inactive_account_still_gets_403(client, db, portal, make_user):
+    # The one legitimate 403 (PERMISSIONS.md, « 403 légitimes »): the
+    # account is the caller's own, only its use is refused — even on a
+    # resource that is in its perimeter.
+    teacher = _login_assigned_teacher(client, db, portal, make_user)
+    assert client.get(portal["url"] + "/grid").status_code == 200
+    teacher.is_active_account = False
+    db.session.commit()
     assert client.get(portal["url"] + "/grid").status_code == 403
-    assert save(client, portal).status_code == 403
+    assert client.get("/portal/").status_code == 403
+    # A POST keeps its 401 so the grid keeps its drafts.
+    assert save(client, portal).status_code == 401
 
 
 def test_session_expiry_preserves_server_data(client, portal):

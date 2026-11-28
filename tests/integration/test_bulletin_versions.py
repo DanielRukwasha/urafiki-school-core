@@ -103,7 +103,7 @@ def test_correction_is_direction_only(published, client, make_user):
     teacher, password = make_user(email="prof@alpha.example", role=RoleEnum.ENSEIGNANT)
     client.get("/auth/logout")
     client.post("/auth/login", data={"email": teacher.email, "password": password})
-    assert client.post(f"{published['base']}/correction", data={"motif": MOTIF}).status_code == 403
+    assert client.post(f"{published['base']}/correction", data={"motif": MOTIF}).status_code == 404
     assert len(_versions()) == 1
 
 
