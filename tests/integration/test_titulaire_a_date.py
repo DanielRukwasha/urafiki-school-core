@@ -115,3 +115,44 @@ def test_delegation_revoked_before_the_date_does_not_apply(
                 statut=StatutDelegation.REVOQUEE, revoked_at=d(2, 12))
     assert titulaire_effectif(school_class, at=d(2, 11)) == z
     assert titulaire_effectif(school_class, at=d(2, 15)) == x
+
+
+def test_delegation_stops_at_the_exact_revocation_instant(
+    db, tenant_a, make_user, x_puis_y, school_class
+):
+    # Exclusive bound: revoked_at > at. At the revocation instant itself
+    # the delegation no longer applies; one microsecond before, it does.
+    x, _ = x_puis_y
+    z, _ = make_user(email="z@example.com")
+    revoked_at = d(2, 12)
+    _delegation(db, tenant_a, school_class, x, z, d(2, 10), d(2, 20),
+                statut=StatutDelegation.REVOQUEE, revoked_at=revoked_at)
+    assert titulaire_effectif(school_class, at=revoked_at) == x
+    assert titulaire_effectif(school_class, at=revoked_at - datetime.timedelta(microseconds=1)) == z
+
+
+def test_delegation_without_history_never_yields_a_delegate(
+    db, tenant_a, make_user, school_class
+):
+    # Refutation of the Frontend review blocker on #128: a class whose
+    # history was never recorded (no TitulaireHistorique row) but with a
+    # delegation covering the date must still answer None.
+    delegant, _ = make_user(email="delegant@example.com")
+    z, _ = make_user(email="z@example.com")
+    school_class.titulaire_id = delegant.id
+    db.session.commit()
+    _delegation(db, tenant_a, school_class, delegant, z, d(2, 10), d(2, 20),
+                statut=StatutDelegation.EXPIREE)
+    assert titulaire_effectif(school_class, at=d(2, 15)) is None
+    assert not est_titulaire_effectif(z, school_class, at=d(2, 15))
+
+
+def test_delegation_outside_any_history_stretch_never_yields_a_delegate(
+    db, tenant_a, make_user, x_puis_y, school_class
+):
+    # Same rule before the first history row of a recorded class.
+    x, _ = x_puis_y
+    z, _ = make_user(email="z@example.com")
+    _delegation(db, tenant_a, school_class, x, z, d(1, 1), d(1, 4),
+                statut=StatutDelegation.EXPIREE)
+    assert titulaire_effectif(school_class, at=d(1, 2)) is None

@@ -56,11 +56,14 @@ def titulaire_effectif(school_class, at=None):
     the denormalized "right now" value).
 
     With an explicit `at`, the answer is read from the record, never from
-    the present: the `TitulaireHistorique` row covering `at` (half-open
-    interval: `date_debut <= at < date_fin`, `date_fin` NULL meaning still
-    current), then a delegation that was in force at `at` takes
-    precedence. A date that no history row covers returns None rather
-    than the current titulaire, which would rewrite the past.
+    the present: the `TitulaireHistorique` row covering `at` is resolved
+    first (half-open interval: `date_debut <= at < date_fin`, `date_fin`
+    NULL meaning still current); only then does a delegation that was in
+    force at `at` take precedence over that titulaire. A date that no
+    history row covers returns None — never the current titulaire, which
+    would rewrite the past, and never a delegate: a delegation transfers
+    the rights of a recorded titulaire, so without one there is nothing
+    to delegate.
 
     Returns None if nobody holds the rights."""
     if at is None:
@@ -69,9 +72,6 @@ def titulaire_effectif(school_class, at=None):
             return delegation.delegataire
         return school_class.titulaire
 
-    delegation = _delegation_en_vigueur(school_class, at, present=False)
-    if delegation is not None:
-        return delegation.delegataire
     ligne = (
         TitulaireHistorique.query.filter_by(school_class_id=school_class.id)
         .filter(
@@ -81,14 +81,18 @@ def titulaire_effectif(school_class, at=None):
         .order_by(TitulaireHistorique.date_debut.desc())
         .first()
     )
-    return ligne.teacher if ligne is not None else None
+    if ligne is None:
+        return None
+    delegation = _delegation_en_vigueur(school_class, at, present=False)
+    return delegation.delegataire if delegation is not None else ligne.teacher
 
 
 def _delegation_en_vigueur(school_class, at, *, present):
     """The delegation covering `at`. In the present, only an ACTIVE one
     counts. For a past date, a delegation that has since expired was in
     force during its window too; a revoked one counts only if it was
-    revoked after `at`."""
+    revoked strictly after `at` (at the exact revocation instant it no
+    longer applies)."""
     query = DelegationTitulariat.query.filter_by(school_class_id=school_class.id).filter(
         DelegationTitulariat.date_debut <= at, DelegationTitulariat.date_fin >= at
     )

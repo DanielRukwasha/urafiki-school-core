@@ -29,13 +29,17 @@ seul l'exercice effectif des droits est délégué le temps de la fenêtre.
 - **sans `at`** (le présent) : une délégation ACTIVE couvrant maintenant
   prime sur `SchoolClass.titulaire` ;
 - **avec une date `at`** : la réponse est lue dans l'historique, jamais
-  dans le présent. La ligne de `TitulaireHistorique` qui couvre `at`
-  (intervalle semi-ouvert `date_debut <= at < date_fin` : le jour du
-  changement appartient au nouveau titulaire), puis une délégation en
-  vigueur à `at` qui prime. Une délégation expirée depuis compte pour sa
-  fenêtre ; une délégation révoquée ne compte que si elle a été révoquée
-  après `at`. Une date qu'aucune ligne d'historique ne couvre renvoie
-  `None`, jamais le titulaire actuel (#84).
+  dans le présent. La ligne de `TitulaireHistorique` qui couvre `at` est
+  résolue d'abord (intervalle semi-ouvert `date_debut <= at < date_fin` :
+  le jour du changement appartient au nouveau titulaire) ; ensuite
+  seulement, une délégation en vigueur à `at` prime sur ce titulaire.
+  Une délégation expirée depuis compte pour sa fenêtre ; une délégation
+  révoquée ne compte que si elle a été révoquée strictement après `at` (à l'instant exact de la révocation, elle ne
+  s'applique plus). Une date qu'aucune ligne d'historique ne couvre
+  renvoie `None` : jamais le titulaire actuel, et jamais un délégataire,
+  même si une délégation couvre cette date — une délégation transfère les
+  droits d'un titulaire enregistré, et sans ligne d'historique il n'y a
+  rien à déléguer (#84).
 
 La migration `14efd3eb110e` n'a pas reconstitué d'historique pour les
 titulaires affectés avant elle : pour ces classes, une date antérieure à
