@@ -25,8 +25,21 @@ bornée, sans jamais toucher `TitulaireHistorique` ni
 `SchoolClass.titulaire_id` — le titulaire de référence ne change pas,
 seul l'exercice effectif des droits est délégué le temps de la fenêtre.
 `titulaire_effectif(school_class, at=None)` résout l'un ou l'autre :
-une délégation ACTIVE couvrant `at` (par défaut maintenant) prime sur le
-titulaire enregistré.
+
+- **sans `at`** (le présent) : une délégation ACTIVE couvrant maintenant
+  prime sur `SchoolClass.titulaire` ;
+- **avec une date `at`** : la réponse est lue dans l'historique, jamais
+  dans le présent. La ligne de `TitulaireHistorique` qui couvre `at`
+  (intervalle semi-ouvert `date_debut <= at < date_fin` : le jour du
+  changement appartient au nouveau titulaire), puis une délégation en
+  vigueur à `at` qui prime. Une délégation expirée depuis compte pour sa
+  fenêtre ; une délégation révoquée ne compte que si elle a été révoquée
+  après `at`. Une date qu'aucune ligne d'historique ne couvre renvoie
+  `None`, jamais le titulaire actuel (#84).
+
+La migration `14efd3eb110e` n'a pas reconstitué d'historique pour les
+titulaires affectés avant elle : pour ces classes, une date antérieure à
+la première ligne d'historique renvoie `None`.
 
 ## Droits du titulaire (rappel du périmètre exact)
 
