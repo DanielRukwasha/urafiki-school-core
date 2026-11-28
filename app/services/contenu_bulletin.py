@@ -252,7 +252,14 @@ def contenu_de_version(version) -> dict:
             f"Version {version.numero} : le contenu stocké ne correspond plus à son "
             "empreinte. Lecture refusée."
         )
-    return json.loads(version.contenu)
+    try:
+        return json.loads(version.contenu)
+    except ValueError as error:
+        # Fingerprint intact but undecodable text: stored damaged.
+        raise ContenuBulletinError(
+            f"Version {version.numero} : le contenu stocké n'est pas un JSON valide "
+            f"({error}). Lecture refusée."
+        ) from error
 
 
 def ligne_corrigee(avant: dict, apres: dict) -> int | None:

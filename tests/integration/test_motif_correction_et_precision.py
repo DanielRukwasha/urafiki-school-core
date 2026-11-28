@@ -9,11 +9,13 @@
    (owner decision, PERMISSIONS.md), with the same integrity contract
    for every profile."""
 
+import hashlib
 import json
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import text
 
 from app.models.course import Course
 from app.models.deliberation_workflow import BulletinVersion
@@ -340,6 +342,44 @@ def test_real_correction_of_a_bulletin_in_the_old_format_is_published(
     response = client.post(classe["base"] + "/consolidation/correction", data={"motif": MOTIF})
     assert response.status_code == 302
     assert len(_versions()) == 2
+
+
+@pytest.mark.parametrize("empreinte_recalculee", [False, True],
+                         ids=["empreinte-rompue", "empreinte-du-texte-tronque"])
+def test_correction_over_a_truncated_snapshot_is_refused_and_logged(
+    published, client, db, monkeypatch, empreinte_recalculee
+):
+    # Refutation of the Frontend review blocker on 92f1778: a real grade
+    # change (new fingerprint), then the stored v1 content truncated out
+    # of band. The correction POST used to raise JSONDecodeError.
+    from app.services import deliberation_service
+
+    (v1,) = _versions()
+    tronque = v1.contenu[: len(v1.contenu) // 2]
+    empreinte = (hashlib.sha256(tronque.encode("utf-8")).hexdigest()
+                 if empreinte_recalculee else v1.empreinte)
+    # Out-of-band alteration: raw SQL, below the ORM immutability guard.
+    db.session.execute(
+        text("UPDATE bulletin_versions SET contenu = :c, empreinte = :e WHERE id = :id"),
+        {"c": tronque, "e": empreinte, "id": v1.id},
+    )
+    db.session.commit()
+    db.session.expire_all()
+    _grade(published["enrollment"], published["ligne"], published["period"]).score = Decimal("16")
+    db.session.commit()
+
+    errors = []
+    monkeypatch.setattr(deliberation_service.logger, "error",
+                        lambda msg, *args: errors.append(msg % args))
+    response = client.post(published["base"] + "/consolidation/correction",
+                           data={"motif": MOTIF})
+    assert response.status_code == 422
+    body = response.get_data(as_text=True)
+    assert "Correction impossible" in body
+    assert "intégrité consigné" in body
+    assert len(_versions()) == 1
+    attendu = "empreinte" if not empreinte_recalculee else "JSON valide"
+    assert any(attendu in message for message in errors), errors
 
 
 def test_others_never_read_a_motif(corrections, school_class):
