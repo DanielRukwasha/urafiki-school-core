@@ -1,0 +1,3 @@
+{% macro state_badge(state) -%}
+<span class="status-label status-{{ state.variant }}" data-state="{{ state.id }}">{{ state.label }}</span>
+{%- endmacro %}

@@ -26,19 +26,40 @@ def _text(value, field, required=False):
     return value
 
 
+COURSE_STATUS_VARIANTS = {
+    "complete": "complete",
+    "incomplete": "incomplete",
+}
+
+
 def normalize_consolidation(payload):
     """Return a template-safe view without deriving any metric."""
     if not isinstance(payload, dict):
         raise ConsolidationPayloadError("consolidation payload must be an object")
-    courses = _list(payload.get("courses", []), "courses")
+    courses = []
     students = _list(payload.get("students", []), "students")
     decisions = _list(payload.get("decisions", []), "decisions")
     distribution = _list(payload.get("distribution", []), "distribution")
-    for item in courses:
+    for item in _list(payload.get("courses", []), "courses"):
         if not isinstance(item, dict):
             raise ConsolidationPayloadError("course summary must be an object")
         _text(item.get("name"), "course.name", True)
-        _text(item.get("status"), "course.status", True)
+        status = _text(item.get("status"), "course.status", True)
+        if status not in COURSE_STATUS_VARIANTS:
+            raise ConsolidationPayloadError(f"unknown course.status: {status!r}")
+        label = _text(item.get("status_label"), "course.status_label", True)
+        if not label.strip():
+            raise ConsolidationPayloadError("course.status_label must not be blank")
+        courses.append(
+            {
+                **item,
+                "state": {
+                    "id": status,
+                    "variant": COURSE_STATUS_VARIANTS[status],
+                    "label": label,
+                },
+            }
+        )
     for item in decisions:
         if not isinstance(item, dict):
             raise ConsolidationPayloadError("decision must be an object")
