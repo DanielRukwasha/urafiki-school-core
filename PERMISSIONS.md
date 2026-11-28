@@ -101,7 +101,20 @@ restant figure ici avec le test qui établit ce lien.
 
 | Site | Lien légitime | Test |
 |---|---|---|
-| `app/blueprints/portal/routes.py:session_check` — compte désactivé (`is_active` faux), requête autre que `POST` | le compte est celui de l'utilisateur ; seule son utilisation est refusée (un `POST` reçoit 401 pour que l'interface conserve les brouillons) | `tests/integration/test_portal.py:test_inactive_account_still_gets_403` |
+| `app/blueprints/portal/routes.py:session_check` — compte désactivé (`is_active` faux), requête autre que `POST` | le compte est celui de l'utilisateur ; seule son utilisation est refusée (un `POST` reçoit 401 pour que l'interface conserve les brouillons) | `tests/integration/test_portal.py:test_inactive_account_still_gets_403`, `tests/integration/test_tenant_isolation.py:test_inactive_account_of_another_school_never_gets_the_403` |
+
+**Décision du propriétaire (2026-11-27, #125)** : le 403 du compte
+désactivé est conservé et rendu atteignable. Avant #125, il ne l'était
+pas : Flask-Login définit `is_authenticated` comme `is_active`, si bien
+qu'un compte désactivé n'était jamais « authentifié » et recevait 302
+(redirection vers la connexion) ou 401, jamais 403. Le périmètre retenu :
+
+- **portail seulement** (`session_check` du blueprint `portal`) ; `/admin`
+  et `/auth` gardent le chemin non authentifié ;
+- **école du domaine seulement** : un compte désactivé d'une autre école
+  n'est pas reconnu et ne reçoit jamais ce 403 ;
+- **connexion inchangée** : `is_authenticated` n'est pas surchargé, et un
+  compte désactivé ne passe jamais `login_required`.
 
 ## Verrouillage d'écriture et machine à états
 
