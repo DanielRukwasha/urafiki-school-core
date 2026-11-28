@@ -44,8 +44,11 @@ def roles_required(*allowed_roles: RoleEnum):
     """Restrict a view to authenticated users whose role is in allowed_roles.
 
     Unauthenticated requests are redirected to the login page (standard
-    Flask-Login behaviour via @login_required); an authenticated user with
-    an insufficient role gets a hard 403.
+    Flask-Login behaviour via @login_required); an authenticated user whose
+    role is never admitted on the view gets a bare 404, exactly like a
+    route that does not exist: a role excluded from a resource is out of
+    scope, and a 403 would confirm that the resource exists (AGENT_BRIEFING,
+    invariant 6).
     """
 
     def decorator(view_func):
@@ -53,7 +56,7 @@ def roles_required(*allowed_roles: RoleEnum):
         @login_required
         def wrapped_view(*args, **kwargs):
             if current_user.role not in allowed_roles:
-                abort(403)
+                abort(404)
             return view_func(*args, **kwargs)
 
         return wrapped_view

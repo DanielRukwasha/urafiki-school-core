@@ -5,9 +5,9 @@ portal/deliberation.html, portal/override_decision.html).
 
 Out-of-scope contextual access (wrong class, not the titulaire, not
 Direction where Direction is required) is a 404, never a 403 — see
-app.services.authorization_service's module docstring. A 403 only comes
-from @roles_required's coarse "this role is never allowed on this
-endpoint at all" gate."""
+app.services.authorization_service's module docstring. @roles_required's
+coarse "this role is never allowed on this endpoint at all" gate answers
+404 too (PERMISSIONS.md)."""
 
 import datetime
 from decimal import Decimal
@@ -344,13 +344,14 @@ def test_teacher_cannot_reach_consolidation_or_deliberation_or_audit(
     base = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
     # Neither titulaire nor attributaire of this class -> contextual 404.
     assert client.get(f"{base}/consolidation").status_code == 404
-    # /deliberation is Direction-only at the coarse @roles_required gate.
-    assert client.get(f"{base}/deliberation").status_code == 403
+    # /deliberation is Direction-only at the coarse @roles_required gate,
+    # which answers 404 like any out-of-scope resource.
+    assert client.get(f"{base}/deliberation").status_code == 404
     # Any transition but "submit" requires Direction via require_direction
     # -> contextual 404, not the coarse role gate.
     assert client.post(f"{base}/consolidation/consolidate").status_code == 404
     # /audit is Direction-only at the coarse @roles_required gate.
-    assert client.get("/portal/audit").status_code == 403
+    assert client.get("/portal/audit").status_code == 404
 
 
 def test_audit_log_merges_grade_and_deliberation_events_with_filters(

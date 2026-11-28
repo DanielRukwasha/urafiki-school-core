@@ -37,7 +37,7 @@ def test_users_list_forbidden_for_teacher(client, make_user):
     login(client, "teacher@example.com", "Secret123!")
 
     response = client.get("/admin/users")
-    assert response.status_code == 403
+    assert response.status_code == 404
 
 
 def test_academic_years_allowed_for_secretariat(client, make_user):
@@ -55,4 +55,4 @@ def test_academic_years_forbidden_for_teacher(client, make_user):
     login(client, "teacher@example.com", "Secret123!")
 
     response = client.get("/admin/academic-years")
-    assert response.status_code == 403
+    assert response.status_code == 404

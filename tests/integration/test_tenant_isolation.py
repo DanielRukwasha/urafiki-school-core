@@ -114,7 +114,10 @@ def test_login_session_rejected_when_replayed_on_another_tenants_domain(
         domain=tenant_b.domain, key="session", value=session_cookie.value, origin_only=False
     )
     response = client.get("/admin/", base_url=base_b)
-    assert response.status_code == 403
+    # 404 without description: nothing tells the replayed session that
+    # this domain or path exists.
+    assert response.status_code == 404
+    assert b"Session invalide" not in response.data
 
     logs = (
         TenantAccessAuditLog.query.execution_options(skip_tenant_filter=True)
@@ -172,3 +175,28 @@ def test_provision_tenant_creates_a_working_tenant(db):
 
     resolved = resolve_tenant_calculation(result.institution.id)
     assert resolved.strategy_key == "STANDARD"
+
+
+def test_inactive_account_of_another_school_never_gets_the_403(
+    app, db, tenant_a, tenant_b, make_user
+):
+    """The deactivated-account 403 (PERMISSIONS.md) is for the caller's
+    own school only. A deactivated account of school A replayed on school
+    B's domain is out of scope there and must not receive it."""
+    user, password = make_user(
+        email="inactive@a.example", role=RoleEnum.DIRECTION, ecole_id=tenant_a.id
+    )
+    client = app.test_client()
+    base_a = f"http://{tenant_a.domain}"
+    base_b = f"http://{tenant_b.domain}"
+    client.post("/auth/login", data={"email": user.email, "password": password}, base_url=base_a)
+    session_cookie = client.get_cookie("session", domain=tenant_a.domain)
+    user.is_active_account = False
+    db.session.commit()
+
+    assert client.get("/portal/", base_url=base_a).status_code == 403
+    client.set_cookie(
+        domain=tenant_b.domain, key="session", value=session_cookie.value, origin_only=False
+    )
+    # Ordinary unauthenticated path: redirect to the login page.
+    assert client.get("/portal/", base_url=base_b).status_code == 302

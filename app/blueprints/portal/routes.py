@@ -10,7 +10,7 @@ all), never a specific class, line, or student.
 import json
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, abort, g, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -140,8 +140,25 @@ def session_check():
         not current_user.is_authenticated or not current_user.is_active
     ):
         return "Session expirée. Reconnectez-vous avant de synchroniser.", 401
-    if current_user.is_authenticated and not current_user.is_active:
+    if _session_of_inactive_account():
+        # Legitimate 403 (PERMISSIONS.md, « 403 légitimes ») : the account
+        # is the caller's own and only its use is refused.
         abort(403)
+
+
+def _session_of_inactive_account() -> bool:
+    """A session whose account belongs to this domain's school but is
+    deactivated. Flask-Login's `UserMixin.is_authenticated` returns
+    `is_active`, so such an account is never "authenticated": it has to be
+    recognised as a loaded, non-anonymous user instead. A deactivated
+    account of another school is not matched here and keeps the ordinary
+    unauthenticated path, so the 403 never answers an out-of-scope
+    session."""
+    return (
+        not current_user.is_anonymous
+        and not current_user.is_active
+        and current_user.ecole_id == g.current_ecole_id
+    )
 
 
 @bp.get("/")

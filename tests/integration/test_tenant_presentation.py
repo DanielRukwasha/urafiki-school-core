@@ -150,5 +150,5 @@ def test_teacher_cannot_edit_or_preview_template(
     user, password = make_user()
     client.post("/auth/login", data={"email": user.email, "password": password})
     prefix = f"/portal/classes/{school_class.id}/periods/{evaluation_period.id}"
-    assert client.get(prefix + "/report-template").status_code == 403
-    assert client.get(prefix + "/report-preview").status_code == 403
+    assert client.get(prefix + "/report-template").status_code == 404
+    assert client.get(prefix + "/report-preview").status_code == 404
