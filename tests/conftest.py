@@ -193,6 +193,13 @@ def calculation_strategy_standard(db):
 # `tenant_a_structure` adds its remaining trimesters and its policy, and
 # `tenant_b_world` builds tenant_b's complete, independent structure.
 # tests/integration/test_tenant_fixtures.py asserts the divergence holds.
+#
+# Within each school, two more niveaux carry grids that diverge from each
+# other (#88): number of courses, number of groups, maxima that vary with
+# the period, at least one course out of the general total and one course
+# graded by appreciation. They are declared in TENANT_A_NIVEAUX /
+# TENANT_B_NIVEAUX and built, opt-in, by `tenant_a_niveaux` and
+# `tenant_b_niveaux`; the ordinary single-grid fixtures are unchanged.
 # ---------------------------------------------------------------------------
 
 TENANT_A_SPEC = {
@@ -209,6 +216,158 @@ TENANT_B_SPEC = {
     "decimals": 1,
     "threshold": Decimal("60"),
 }
+
+
+# Divergent grids per niveau (#88). A line is
+#   (course code, ponderation, maxima per period in order — None for a
+#    course graded by appreciation —, counts in the general total)
+# and a group is (libelle, counts in the general total, lines). Group
+# libelles and course codes are unique per school, so a group or a course
+# shared by two niveaux is the same row; its group-level flag must agree.
+TENANT_A_COURSES = {
+    "FRA": "Français", "ANG": "Anglais", "LAT": "Latin", "ALG": "Algèbre",
+    "SVT": "Sciences de la vie", "PHC": "Physique-chimie", "REL": "Religion",
+    "CON": "Conduite",
+}
+TENANT_A_NIVEAUX = {
+    "5eme": {
+        "ordre": 5,
+        "groupes": [
+            ("Langues", True, [
+                ("FRA", "4", ("20", "20", "40"), True),
+                ("ANG", "2", ("10", "10", "20"), True),
+            ]),
+            ("Sciences", True, [
+                ("ALG", "5", ("20", "20", "40"), True),
+                ("SVT", "2", ("10", "10", "20"), True),
+            ]),
+            ("Vie scolaire", True, [
+                ("REL", "1", ("10", "10", "10"), False),
+                ("CON", "1", None, True),
+            ]),
+        ],
+    },
+    "4eme": {
+        "ordre": 4,
+        "groupes": [
+            ("Langues", True, [
+                ("FRA", "3", ("20", "20", "20"), True),
+                ("LAT", "1", ("10", "10", "10"), False),
+            ]),
+            ("Sciences", True, [
+                ("ALG", "6", ("20", "40", "40"), True),
+                ("PHC", "3", ("20", "20", "20"), True),
+                ("CON", "1", None, True),
+            ]),
+        ],
+    },
+}
+TENANT_B_COURSES = {
+    "MTH": "Mathématiques", "FRN": "Français", "EPS": "Éducation physique",
+    "INF": "Informatique", "ART": "Arts plastiques", "MUS": "Musique",
+    "PHI": "Philosophie", "CHM": "Chimie", "TUT": "Tutorat", "ORI": "Orientation",
+}
+TENANT_B_NIVEAUX = {
+    "Première": {
+        "ordre": 11,
+        "groupes": [
+            ("Fondamentaux", True, [
+                ("MTH", "4", ("10", "20"), True),
+                ("FRN", "3", ("10", "20"), True),
+                ("EPS", "1", ("10", "10"), True),
+            ]),
+            ("Options", True, [
+                ("INF", "2", ("10", "10"), True),
+                ("ART", "1", None, True),
+                ("MUS", "1", ("10", "10"), False),
+            ]),
+        ],
+    },
+    "Terminale": {
+        "ordre": 12,
+        "groupes": [
+            ("Fondamentaux", True, [
+                ("MTH", "5", ("20", "20"), True),
+                ("PHI", "4", ("10", "20"), True),
+            ]),
+            ("Sciences expérimentales", True, [
+                ("CHM", "3", ("10", "10"), True),
+            ]),
+            # The whole group stays out of the general total.
+            ("Accompagnement", False, [
+                ("TUT", "1", None, True),
+                ("ORI", "1", ("10", "10"), True),
+            ]),
+        ],
+    },
+}
+
+
+@dataclass
+class NiveauGrid:
+    """One niveau of a fictitious school, its grid and a class on it."""
+
+    niveau: Niveau
+    grille: GrilleCours
+    school_class: SchoolClass
+    lignes: dict  # course code -> GrilleCoursLigne
+
+
+def build_niveaux(db, *, ecole_id, academic_year_id, section_id, periods, courses, spec):
+    """Build every niveau of `spec` (see TENANT_A_NIVEAUX) for one school:
+    its grid, groups, courses, lines, per-period maxima and one class.
+    Returns {niveau libelle: NiveauGrid}."""
+
+    def add(obj):
+        db.session.add(obj)
+        db.session.flush()
+        return obj
+
+    catalogue, groupes, built = {}, {}, {}
+    for libelle, niveau_spec in spec.items():
+        niveau = add(Niveau(ecole_id=ecole_id, libelle=libelle,
+                            ordre_affichage=niveau_spec["ordre"]))
+        grille = add(GrilleCours(ecole_id=ecole_id, section_id=section_id,
+                                 niveau_id=niveau.id, academic_year_id=academic_year_id))
+        klass = add(SchoolClass(ecole_id=ecole_id, academic_year_id=academic_year_id,
+                                section_id=section_id, niveau_id=niveau.id,
+                                name=f"{libelle} A", level_order=niveau_spec["ordre"]))
+        lignes, ordre = {}, 0
+        for groupe_ordre, (groupe_libelle, groupe_inclus, lines) in enumerate(
+            niveau_spec["groupes"], start=1
+        ):
+            groupe = groupes.get(groupe_libelle)
+            if groupe is None:
+                groupe = groupes[groupe_libelle] = add(GroupeCours(
+                    ecole_id=ecole_id, libelle=groupe_libelle, ordre_affichage=groupe_ordre,
+                    entre_dans_total_general=groupe_inclus,
+                ))
+            assert groupe.entre_dans_total_general == groupe_inclus, groupe_libelle
+            for code, ponderation, maxima, inclus in lines:
+                cours = catalogue.get(code)
+                if cours is None:
+                    cours = catalogue[code] = add(
+                        Course(ecole_id=ecole_id, name=courses[code], code=code)
+                    )
+                ordre += 1
+                ligne = add(GrilleCoursLigne(
+                    ecole_id=ecole_id, grille_cours_id=grille.id, cours_id=cours.id,
+                    groupe_cours_id=groupe.id, ordre_affichage=ordre,
+                    ponderation=Decimal(ponderation), entre_dans_total_general=inclus,
+                    note_par_appreciation=maxima is None,
+                ))
+                if maxima is not None:
+                    assert len(maxima) == len(periods), (libelle, code)
+                    for period, maximum in zip(periods, maxima, strict=True):
+                        add(GrilleCoursLigneMaximum(
+                            ecole_id=ecole_id, grille_cours_ligne_id=ligne.id,
+                            periode_id=period.id, maximum=Decimal(maximum),
+                        ))
+                lignes[code] = ligne
+        built[libelle] = NiveauGrid(niveau=niveau, grille=grille, school_class=klass,
+                                    lignes=lignes)
+    db.session.commit()
+    return built
 
 
 @pytest.fixture()
@@ -417,6 +576,28 @@ def tenant_b_world(db, tenant_b):
         institution=tenant_b, direction=direction, teacher=teacher, academic_year=year,
         school_class=klass, periods=periods, course=course, ligne=ligne, student=student,
         enrollment=enrollment, grade=grade, publication=publication,
+    )
+
+
+@pytest.fixture()
+def tenant_a_niveaux(db, tenant_a, tenant_a_structure, academic_year, section):
+    """tenant_a's two divergent niveaux (TENANT_A_NIVEAUX), over its 3
+    trimesters."""
+    return build_niveaux(
+        db, ecole_id=tenant_a.id, academic_year_id=academic_year.id, section_id=section.id,
+        periods=tenant_a_structure, courses=TENANT_A_COURSES, spec=TENANT_A_NIVEAUX,
+    )
+
+
+@pytest.fixture()
+def tenant_b_niveaux(db, tenant_b_world):
+    """tenant_b's two divergent niveaux (TENANT_B_NIVEAUX), over its 2
+    semesters, next to tenant_b_world's own single-line grid."""
+    world = tenant_b_world
+    return build_niveaux(
+        db, ecole_id=world.institution.id, academic_year_id=world.academic_year.id,
+        section_id=world.school_class.section_id, periods=world.periods,
+        courses=TENANT_B_COURSES, spec=TENANT_B_NIVEAUX,
     )
 
 
