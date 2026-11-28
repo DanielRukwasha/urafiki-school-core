@@ -83,6 +83,8 @@ peut_soumettre_classe(user, school_class, period) -> bool
     # titulaire effectif uniquement.
 peut_rouvrir_periode(user) -> bool        # Direction uniquement
 peut_valider_bulletin(user) -> bool       # Direction uniquement
+peut_lire_motif_correction(user, school_class, version) -> bool
+    # voir « Motifs de correction des bulletins publiés ».
 peut_gerer_grille(user) -> bool           # Direction uniquement
 
 require_lecture_classe(user, school_class) -> None       # lève 404
@@ -132,6 +134,41 @@ qu'un compte désactivé n'était jamais « authentifié » et recevait 302
   n'est pas reconnu et ne reçoit jamais ce 403 ;
 - **connexion inchangée** : `is_authenticated` n'est pas surchargé, et un
   compte désactivé ne passe jamais `login_required`.
+
+## Motifs de correction des bulletins publiés
+
+**Décision du propriétaire (2026-11-28, revue de #126)**. Le motif d'une
+correction motivée est lisible selon `peut_lire_motif_correction(user,
+school_class, version)`, seule source de la règle ; une route n'en
+décide jamais elle-même.
+
+| Qui | Motifs lisibles |
+|---|---|
+| Direction, titulaire effectif de la classe (au présent) | tous |
+| Enseignant attributaire | seulement le motif d'une correction dont le contenu figé, comparé à la version qu'elle corrige, ne change les cotes que d'**une seule ligne**, et que cette ligne est la sienne dans cette classe |
+| Tout autre utilisateur, secrétariat compris | aucun |
+
+- Une première publication n'a pas de motif.
+- Une correction qui ne se ramène pas à une seule ligne (changement de
+  structure, de présentation, d'élèves, ou de cotes sur plusieurs
+  lignes) reste au périmètre de la classe.
+- Échec fermé : une version d'une autre classe, un contenu antérieur au
+  gel (migration `d7e2b4c1a9f3`) ou un contenu qui ne correspond plus à
+  son empreinte donnent « non ». La rupture d'empreinte est en plus
+  journalisée comme erreur d'intégrité.
+- Le motif reste un texte libre : la règle borne l'événement, pas ce
+  que dit le texte. Le propriétaire l'a accepté en connaissance de cause.
+- Écrans : la grille d'un attributaire affiche les motifs que la règle
+  lui ouvre ; la consolidation n'affiche que les motifs du périmètre de
+  classe (choix d'interface, #126).
+
+## Précision des pourcentages dans le contenu figé
+
+Le `pourcentage_affiche` du contenu figé d'une version est arrondi au
+`percentage_decimal_places` du tenant au moment de la publication, puis
+ne bouge plus, même si la configuration change ensuite (#69, partiel).
+Une configuration de calcul incomplète refuse la publication avec une
+erreur explicite, jamais une valeur par défaut (invariant 2).
 
 ## Verrouillage d'écriture et machine à états
 

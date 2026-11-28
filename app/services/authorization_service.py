@@ -20,6 +20,7 @@ Published signatures:
     peut_soumettre_classe(user, school_class, period) -> bool
     peut_rouvrir_periode(user) -> bool
     peut_valider_bulletin(user) -> bool
+    peut_lire_motif_correction(user, school_class, version) -> bool
     peut_gerer_grille(user) -> bool
     require_lecture_classe(user, school_class) -> None (raises 404)
     require_encodage_ligne(user, school_class, ligne, period) -> None (raises 404)
@@ -29,6 +30,8 @@ Published signatures:
 """
 
 from __future__ import annotations
+
+import logging
 
 from werkzeug.exceptions import NotFound
 
@@ -42,6 +45,8 @@ from app.models.titulariat import (
     TitulaireHistorique,
 )
 from app.models.user import RoleEnum
+
+logger = logging.getLogger(__name__)
 
 
 def _is_direction(user) -> bool:
@@ -179,6 +184,54 @@ def peut_rouvrir_periode(user) -> bool:
 
 def peut_valider_bulletin(user) -> bool:
     return _is_direction(user)
+
+
+def peut_lire_motif_correction(user, school_class, version) -> bool:
+    """Whether `user` may read the motif of the published bulletin
+    `version` of `school_class` (owner decision, PERMISSIONS.md).
+
+    - Direction and the class's effective titulaire (now): every motif.
+    - A plain attributaire: only the motif of a correction whose frozen
+      content, compared with the version it corrects, changes the grades
+      of exactly one grid line, and that line is one they teach in this
+      class. A first publication has no motif; a correction that cannot
+      be pinned to a single line stays class-scope only.
+    - Anyone else (secretariat included): never.
+
+    Fails closed: a version of another class, a content frozen before
+    migration d7e2b4c1a9f3, or a content that no longer matches its
+    fingerprint gives False. The fingerprint mismatch is also logged as
+    an integrity error, so an altered content never goes unnoticed."""
+    if user is None or version.publication.school_class_id != school_class.id:
+        return False
+    if peut_lire_cotes_classe(user, school_class):
+        return True
+    precedente = version.corrige_version
+    if precedente is None:
+        return False
+    ligne_id = _ligne_corrigee_par(precedente, version)
+    if ligne_id is None:
+        return False
+    from app.models.grille import GrilleCoursLigne
+
+    ligne = db.session.get(GrilleCoursLigne, ligne_id)
+    return ligne is not None and est_attributaire(user, school_class, ligne)
+
+
+def _ligne_corrigee_par(precedente, version) -> int | None:
+    from app.services.contenu_bulletin import (
+        ContenuBulletinError,
+        contenu_de_version,
+        ligne_corrigee,
+    )
+
+    if precedente.contenu is None or version.contenu is None:
+        return None
+    try:
+        return ligne_corrigee(contenu_de_version(precedente), contenu_de_version(version))
+    except ContenuBulletinError as error:
+        logger.error("Intégrité du bulletin figé : %s", error)
+        return None
 
 
 def peut_gerer_grille(user) -> bool:

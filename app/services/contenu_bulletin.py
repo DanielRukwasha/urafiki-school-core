@@ -38,6 +38,7 @@ from app.services.grade_calculation_engine import (
     rank_students,
 )
 from app.services.grille_service import lignes_actives, maximum_pour_periode, resoudre_grille
+from app.services.tenant_calculation import IncompleteTenantConfigError, resolve_tenant_calculation
 
 SCHEMA_CONTENU = 1
 
@@ -116,8 +117,17 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
     `{"branding": ..., "report": ...}` (see
     `app.tenant_presentation.presentation_configuration`). Every Decimal
     is kept as its exact string so the frozen value round-trips bit for
-    bit."""
+    bit.
+
+    `pourcentage_affiche` is rounded to the tenant's configured
+    `percentage_decimal_places` (invariant 2): an incomplete calculation
+    configuration raises ContenuBulletinError, never a default."""
     from app.models.grading import Grade
+
+    try:
+        decimales = resolve_tenant_calculation(klass.ecole_id).percentage_decimal_places
+    except IncompleteTenantConfigError as error:
+        raise ContenuBulletinError(f"Configuration de calcul incomplète : {error}") from error
 
     columns = colonnes_grille(klass, period)
     enrollments = inscriptions_actives(klass)
@@ -196,7 +206,7 @@ def calculer_contenu(klass, period, presentation: dict) -> dict:
                     "possible": _decimal(total.weighted_possible),
                     "pourcentage": _decimal(total.percentage),
                     "pourcentage_affiche": _decimal(
-                        quantize_percentage(total.percentage)
+                        quantize_percentage(total.percentage, decimales)
                         if total.percentage is not None
                         else None
                     ),
@@ -242,6 +252,36 @@ def contenu_de_version(version) -> dict:
             "empreinte. Lecture refusée."
         )
     return json.loads(version.contenu)
+
+
+def ligne_corrigee(avant: dict, apres: dict) -> int | None:
+    """The single grid line whose grades differ between two frozen
+    contents, or None when the correction cannot be pinned to exactly one
+    line: structure, presentation, enrolled students or their identity
+    changed, or grades changed on zero or several lines. Totals, ranks and
+    percentages are derived from the grades and are not compared."""
+    structure = ("schema", "classe", "periode", "colonnes", "presentation")
+    if any(avant.get(cle) != apres.get(cle) for cle in structure):
+        return None
+    eleves_avant = {e["inscription_id"]: e for e in avant.get("eleves", [])}
+    eleves_apres = {e["inscription_id"]: e for e in apres.get("eleves", [])}
+    if eleves_avant.keys() != eleves_apres.keys():
+        return None
+    lignes = set()
+    for inscription_id, precedent in eleves_avant.items():
+        courant = eleves_apres[inscription_id]
+        if (precedent["nom_complet"], precedent["matricule"]) != (
+            courant["nom_complet"],
+            courant["matricule"],
+        ):
+            return None
+        cotes_avant, cotes_apres = precedent["cotes"], courant["cotes"]
+        lignes.update(
+            ligne
+            for ligne in cotes_avant.keys() | cotes_apres.keys()
+            if cotes_avant.get(ligne) != cotes_apres.get(ligne)
+        )
+    return int(next(iter(lignes))) if len(lignes) == 1 else None
 
 
 def _dec(value: str | None) -> Decimal | None:
