@@ -1,0 +1,1432 @@
+{
+  "description": "Valeurs de référence du moteur de calcul (#89), sur les fixtures divergentes de #88 (tests/conftest.py : TENANT_A_NIVEAUX, TENANT_B_NIVEAUX). Calculées indépendamment du moteur, en fractions exactes. Une cote non numérique est une appréciation. Pourcentages arrondis au centime (ROUND_HALF_UP) ; pourcentage_affiche à la précision du tenant.",
+  "ecoles": {
+    "tenant_a": {
+      "niveaux": {
+        "5eme": {
+          "cotes": {
+            "EFA-5-01": [
+              {
+                "FRA": "15",
+                "ANG": "7",
+                "ALG": "12",
+                "SVT": "8",
+                "REL": "9",
+                "CON": "Bien"
+              },
+              {
+                "FRA": "16.5",
+                "ANG": "8",
+                "ALG": "14",
+                "SVT": "6"
+              },
+              {
+                "FRA": "31",
+                "ANG": "13",
+                "ALG": "27",
+                "SVT": "15"
+              }
+            ],
+            "EFA-5-02": [
+              {
+                "FRA": "15",
+                "ANG": "7",
+                "ALG": "12",
+                "SVT": "8",
+                "REL": "2",
+                "CON": "Assez bien"
+              },
+              {
+                "FRA": "11",
+                "ANG": "5.5",
+                "ALG": "7",
+                "SVT": "3"
+              },
+              {
+                "FRA": "22",
+                "ANG": "9",
+                "ALG": "18.5",
+                "SVT": "10"
+              }
+            ],
+            "EFA-5-03": [
+              {
+                "FRA": "8",
+                "ANG": "4",
+                "ALG": "9",
+                "REL": "10"
+              },
+              {},
+              {
+                "FRA": "17",
+                "ANG": "12",
+                "ALG": "11",
+                "SVT": "9.5"
+              }
+            ]
+          },
+          "periodes": [
+            {
+              "EFA-5-01": {
+                "lignes": {
+                  "FRA": {
+                    "points": "60",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "14",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "60",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "16",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "150",
+                  "possible": "220",
+                  "pourcentage": "68.18",
+                  "pourcentage_affiche": "68.18"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              },
+              "EFA-5-02": {
+                "lignes": {
+                  "FRA": {
+                    "points": "60",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "14",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "60",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "16",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "150",
+                  "possible": "220",
+                  "pourcentage": "68.18",
+                  "pourcentage_affiche": "68.18"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              },
+              "EFA-5-03": {
+                "lignes": {
+                  "FRA": {
+                    "points": "32",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "8",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "45",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "85",
+                  "possible": "200",
+                  "pourcentage": "42.50",
+                  "pourcentage_affiche": "42.50"
+                },
+                "decision": "DEFERRED",
+                "rang": 3
+              }
+            },
+            {
+              "EFA-5-01": {
+                "lignes": {
+                  "FRA": {
+                    "points": "66",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "16",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "70",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "12",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "164",
+                  "possible": "220",
+                  "pourcentage": "74.55",
+                  "pourcentage_affiche": "74.55"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              },
+              "EFA-5-02": {
+                "lignes": {
+                  "FRA": {
+                    "points": "44",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "11",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "35",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "6",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "96",
+                  "possible": "220",
+                  "pourcentage": "43.64",
+                  "pourcentage_affiche": "43.64"
+                },
+                "decision": "DEFERRED",
+                "rang": 2
+              },
+              "EFA-5-03": {
+                "lignes": {
+                  "FRA": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ANG": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "SVT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "0",
+                  "possible": "0",
+                  "pourcentage": null,
+                  "pourcentage_affiche": null
+                },
+                "decision": "MANUAL",
+                "rang": null
+              }
+            },
+            {
+              "EFA-5-01": {
+                "lignes": {
+                  "FRA": {
+                    "points": "124",
+                    "possible": "160",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "26",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "135",
+                    "possible": "200",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "30",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "315",
+                  "possible": "440",
+                  "pourcentage": "71.59",
+                  "pourcentage_affiche": "71.59"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              },
+              "EFA-5-02": {
+                "lignes": {
+                  "FRA": {
+                    "points": "88",
+                    "possible": "160",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "18",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "92.5",
+                    "possible": "200",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "20",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "218.5",
+                  "possible": "440",
+                  "pourcentage": "49.66",
+                  "pourcentage_affiche": "49.66"
+                },
+                "decision": "DEFERRED",
+                "rang": 2
+              },
+              "EFA-5-03": {
+                "lignes": {
+                  "FRA": {
+                    "points": "68",
+                    "possible": "160",
+                    "inclus": true
+                  },
+                  "ANG": {
+                    "points": "24",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "ALG": {
+                    "points": "55",
+                    "possible": "200",
+                    "inclus": true
+                  },
+                  "SVT": {
+                    "points": "19",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "REL": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "166",
+                  "possible": "440",
+                  "pourcentage": "37.73",
+                  "pourcentage_affiche": "37.73"
+                },
+                "decision": "DEFERRED",
+                "rang": 3
+              }
+            }
+          ]
+        },
+        "4eme": {
+          "cotes": {
+            "EFA-4-01": [
+              {
+                "FRA": "13",
+                "LAT": "10",
+                "ALG": "11",
+                "PHC": "14"
+              },
+              {
+                "FRA": "12",
+                "ALG": "25",
+                "PHC": "13"
+              },
+              {
+                "FRA": "11",
+                "ALG": "23",
+                "PHC": "12"
+              }
+            ],
+            "EFA-4-02": [
+              {
+                "FRA": "9",
+                "LAT": "4",
+                "ALG": "8",
+                "PHC": "10"
+              },
+              {
+                "FRA": "10",
+                "ALG": "19",
+                "PHC": "9"
+              },
+              {
+                "FRA": "10",
+                "ALG": "20",
+                "PHC": "10"
+              }
+            ],
+            "EFA-4-03": [
+              {
+                "FRA": "17",
+                "ALG": "19",
+                "PHC": "16",
+                "CON": "Très bien"
+              },
+              {
+                "FRA": "14",
+                "ALG": "33.5"
+              },
+              {
+                "FRA": "18",
+                "ALG": "36",
+                "PHC": "17"
+              }
+            ]
+          },
+          "periodes": [
+            {
+              "EFA-4-01": {
+                "lignes": {
+                  "FRA": {
+                    "points": "39",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "66",
+                    "possible": "120",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "42",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "147",
+                  "possible": "240",
+                  "pourcentage": "61.25",
+                  "pourcentage_affiche": "61.25"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              },
+              "EFA-4-02": {
+                "lignes": {
+                  "FRA": {
+                    "points": "27",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "48",
+                    "possible": "120",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "30",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "105",
+                  "possible": "240",
+                  "pourcentage": "43.75",
+                  "pourcentage_affiche": "43.75"
+                },
+                "decision": "DEFERRED",
+                "rang": 3
+              },
+              "EFA-4-03": {
+                "lignes": {
+                  "FRA": {
+                    "points": "51",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "114",
+                    "possible": "120",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "48",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "213",
+                  "possible": "240",
+                  "pourcentage": "88.75",
+                  "pourcentage_affiche": "88.75"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              }
+            },
+            {
+              "EFA-4-01": {
+                "lignes": {
+                  "FRA": {
+                    "points": "36",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "150",
+                    "possible": "240",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "39",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "225",
+                  "possible": "360",
+                  "pourcentage": "62.50",
+                  "pourcentage_affiche": "62.50"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              },
+              "EFA-4-02": {
+                "lignes": {
+                  "FRA": {
+                    "points": "30",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "114",
+                    "possible": "240",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "27",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "171",
+                  "possible": "360",
+                  "pourcentage": "47.50",
+                  "pourcentage_affiche": "47.50"
+                },
+                "decision": "DEFERRED",
+                "rang": 3
+              },
+              "EFA-4-03": {
+                "lignes": {
+                  "FRA": {
+                    "points": "42",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "201",
+                    "possible": "240",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "243",
+                  "possible": "300",
+                  "pourcentage": "81.00",
+                  "pourcentage_affiche": "81.00"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              }
+            },
+            {
+              "EFA-4-01": {
+                "lignes": {
+                  "FRA": {
+                    "points": "33",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "138",
+                    "possible": "240",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "36",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "207",
+                  "possible": "360",
+                  "pourcentage": "57.50",
+                  "pourcentage_affiche": "57.50"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              },
+              "EFA-4-02": {
+                "lignes": {
+                  "FRA": {
+                    "points": "30",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "120",
+                    "possible": "240",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "30",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "180",
+                  "possible": "360",
+                  "pourcentage": "50.00",
+                  "pourcentage_affiche": "50.00"
+                },
+                "decision": "ADMITTED",
+                "rang": 3
+              },
+              "EFA-4-03": {
+                "lignes": {
+                  "FRA": {
+                    "points": "54",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "LAT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ALG": {
+                    "points": "216",
+                    "possible": "240",
+                    "inclus": true
+                  },
+                  "PHC": {
+                    "points": "51",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "CON": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "321",
+                  "possible": "360",
+                  "pourcentage": "89.17",
+                  "pourcentage_affiche": "89.17"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    "tenant_b": {
+      "niveaux": {
+        "Première": {
+          "cotes": {
+            "EFB-1-01": [
+              {
+                "MTH": "8",
+                "FRN": "7",
+                "EPS": "5",
+                "INF": "9",
+                "ART": "B",
+                "MUS": "8"
+              },
+              {
+                "MTH": "17",
+                "FRN": "15",
+                "EPS": "8",
+                "INF": "9"
+              }
+            ],
+            "EFB-1-02": [
+              {
+                "MTH": "6",
+                "FRN": "6.5",
+                "EPS": "7",
+                "INF": "6",
+                "MUS": "9"
+              },
+              {
+                "MTH": "11",
+                "FRN": "12",
+                "EPS": "6",
+                "INF": "5"
+              }
+            ],
+            "EFB-1-03": [
+              {
+                "MTH": "6",
+                "FRN": "6.5",
+                "EPS": "7",
+                "INF": "6"
+              },
+              {
+                "MTH": "13.5",
+                "FRN": "11",
+                "EPS": "9",
+                "INF": "7"
+              }
+            ]
+          },
+          "periodes": [
+            {
+              "EFB-1-01": {
+                "lignes": {
+                  "MTH": {
+                    "points": "32",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "FRN": {
+                    "points": "21",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "EPS": {
+                    "points": "5",
+                    "possible": "10",
+                    "inclus": true
+                  },
+                  "INF": {
+                    "points": "18",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ART": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "MUS": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "76",
+                  "possible": "100",
+                  "pourcentage": "76.00",
+                  "pourcentage_affiche": "76.0"
+                },
+                "decision": "DEFERRED",
+                "rang": 1
+              },
+              "EFB-1-02": {
+                "lignes": {
+                  "MTH": {
+                    "points": "24",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "FRN": {
+                    "points": "19.5",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "EPS": {
+                    "points": "7",
+                    "possible": "10",
+                    "inclus": true
+                  },
+                  "INF": {
+                    "points": "12",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ART": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "MUS": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "62.5",
+                  "possible": "100",
+                  "pourcentage": "62.50",
+                  "pourcentage_affiche": "62.5"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              },
+              "EFB-1-03": {
+                "lignes": {
+                  "MTH": {
+                    "points": "24",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "FRN": {
+                    "points": "19.5",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "EPS": {
+                    "points": "7",
+                    "possible": "10",
+                    "inclus": true
+                  },
+                  "INF": {
+                    "points": "12",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ART": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "MUS": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "62.5",
+                  "possible": "100",
+                  "pourcentage": "62.50",
+                  "pourcentage_affiche": "62.5"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              }
+            },
+            {
+              "EFB-1-01": {
+                "lignes": {
+                  "MTH": {
+                    "points": "68",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "FRN": {
+                    "points": "45",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "EPS": {
+                    "points": "8",
+                    "possible": "10",
+                    "inclus": true
+                  },
+                  "INF": {
+                    "points": "18",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ART": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "MUS": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "139",
+                  "possible": "170",
+                  "pourcentage": "81.76",
+                  "pourcentage_affiche": "81.8"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              },
+              "EFB-1-02": {
+                "lignes": {
+                  "MTH": {
+                    "points": "44",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "FRN": {
+                    "points": "36",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "EPS": {
+                    "points": "6",
+                    "possible": "10",
+                    "inclus": true
+                  },
+                  "INF": {
+                    "points": "10",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ART": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "MUS": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "96",
+                  "possible": "170",
+                  "pourcentage": "56.47",
+                  "pourcentage_affiche": "56.5"
+                },
+                "decision": "DEFERRED",
+                "rang": 3
+              },
+              "EFB-1-03": {
+                "lignes": {
+                  "MTH": {
+                    "points": "54",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "FRN": {
+                    "points": "33",
+                    "possible": "60",
+                    "inclus": true
+                  },
+                  "EPS": {
+                    "points": "9",
+                    "possible": "10",
+                    "inclus": true
+                  },
+                  "INF": {
+                    "points": "14",
+                    "possible": "20",
+                    "inclus": true
+                  },
+                  "ART": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "MUS": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "110",
+                  "possible": "170",
+                  "pourcentage": "64.71",
+                  "pourcentage_affiche": "64.7"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              }
+            }
+          ]
+        },
+        "Terminale": {
+          "cotes": {
+            "EFB-T-01": [
+              {
+                "MTH": "14",
+                "PHI": "7",
+                "CHM": "8",
+                "TUT": "Engagé",
+                "ORI": "7"
+              },
+              {
+                "MTH": "13",
+                "PHI": "12.5",
+                "CHM": "6"
+              }
+            ],
+            "EFB-T-02": [
+              {
+                "MTH": "10",
+                "PHI": "5",
+                "CHM": "5"
+              },
+              {
+                "MTH": "15",
+                "PHI": "14",
+                "CHM": "7"
+              }
+            ],
+            "EFB-T-03": [
+              {
+                "MTH": "19",
+                "PHI": "9.5"
+              },
+              {}
+            ]
+          },
+          "periodes": [
+            {
+              "EFB-T-01": {
+                "lignes": {
+                  "MTH": {
+                    "points": "70",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "PHI": {
+                    "points": "28",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "CHM": {
+                    "points": "24",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "TUT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ORI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "122",
+                  "possible": "170",
+                  "pourcentage": "71.76",
+                  "pourcentage_affiche": "71.8"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              },
+              "EFB-T-02": {
+                "lignes": {
+                  "MTH": {
+                    "points": "50",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "PHI": {
+                    "points": "20",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "CHM": {
+                    "points": "15",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "TUT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ORI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "85",
+                  "possible": "170",
+                  "pourcentage": "50.00",
+                  "pourcentage_affiche": "50.0"
+                },
+                "decision": "DEFERRED",
+                "rang": 3
+              },
+              "EFB-T-03": {
+                "lignes": {
+                  "MTH": {
+                    "points": "95",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "PHI": {
+                    "points": "38",
+                    "possible": "40",
+                    "inclus": true
+                  },
+                  "CHM": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "TUT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ORI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "133",
+                  "possible": "140",
+                  "pourcentage": "95.00",
+                  "pourcentage_affiche": "95.0"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              }
+            },
+            {
+              "EFB-T-01": {
+                "lignes": {
+                  "MTH": {
+                    "points": "65",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "PHI": {
+                    "points": "50",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "CHM": {
+                    "points": "18",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "TUT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ORI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "133",
+                  "possible": "210",
+                  "pourcentage": "63.33",
+                  "pourcentage_affiche": "63.3"
+                },
+                "decision": "ADMITTED",
+                "rang": 2
+              },
+              "EFB-T-02": {
+                "lignes": {
+                  "MTH": {
+                    "points": "75",
+                    "possible": "100",
+                    "inclus": true
+                  },
+                  "PHI": {
+                    "points": "56",
+                    "possible": "80",
+                    "inclus": true
+                  },
+                  "CHM": {
+                    "points": "21",
+                    "possible": "30",
+                    "inclus": true
+                  },
+                  "TUT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ORI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "152",
+                  "possible": "210",
+                  "pourcentage": "72.38",
+                  "pourcentage_affiche": "72.4"
+                },
+                "decision": "ADMITTED",
+                "rang": 1
+              },
+              "EFB-T-03": {
+                "lignes": {
+                  "MTH": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "PHI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "CHM": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "TUT": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  },
+                  "ORI": {
+                    "points": "0",
+                    "possible": "0",
+                    "inclus": false
+                  }
+                },
+                "total": {
+                  "points": "0",
+                  "possible": "0",
+                  "pourcentage": null,
+                  "pourcentage_affiche": null
+                },
+                "decision": "MANUAL",
+                "rang": null
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

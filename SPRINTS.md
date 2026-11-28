@@ -26,6 +26,7 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 14 | Frontend | fix/frontend-badges-etat | livré | 2026-11-27 | #127 | Contrat d’état des badges de consolidation et accessibilité |
 | 15 | Backend | fix/titulaire-a-date | livré | 2026-11-28 | #128 | #84 : titulaire à une date passée lu dans `TitulaireHistorique`, délégation en vigueur à cette date |
 | 17 | Backend | test/fixtures-divergentes | livré | 2026-11-28 | #131 | #88 : deux niveaux aux grilles divergentes par école fictive (cours, groupes, maxima par période, cours exclu, appréciation) et garde-fou réfuté |
+| 19 | Backend | test/reference-moteur | livré | 2026-11-28 | #132 | #89 : fichier de valeurs attendues du moteur sur les fixtures divergentes, comparé au centime en CI |
 
 ## Notes
 
