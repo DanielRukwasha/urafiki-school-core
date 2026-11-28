@@ -25,6 +25,7 @@ d'arbitrage) · `fusionné` · `abandonné` (avec la raison en note).
 | 13 | Backend | fix/404-hors-perimetre | fusionné | 2026-11-28 | #125 | #76 : 404 pour les refus hors périmètre (`roles_required`, session d'une autre école), 403 du compte désactivé rendu atteignable et documenté |
 | 14 | Frontend | fix/frontend-badges-etat | livré | 2026-11-27 | #127 | Contrat d’état des badges de consolidation et accessibilité |
 | 15 | Backend | fix/titulaire-a-date | livré | 2026-11-28 | #128 | #84 : titulaire à une date passée lu dans `TitulaireHistorique`, délégation en vigueur à cette date |
+| 17 | Backend | test/fixtures-divergentes | livré | 2026-11-28 | #à venir | #88 : deux niveaux aux grilles divergentes par école fictive (cours, groupes, maxima par période, cours exclu, appréciation) et garde-fou réfuté |
 
 ## Notes
 
