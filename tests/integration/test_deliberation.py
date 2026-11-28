@@ -124,6 +124,14 @@ def test_consolidation_flags_incomplete_course_as_blocking(
     assert response.status_code == 200
     assert b"Consolidation bloqu\xc3\xa9e" in response.data
     assert b"0 / 1" in response.data
+    html = response.get_data(as_text=True)
+    table = html.split("<table>", 1)[1].split("</table>", 1)[0]
+    assert (
+        '<span class="status-label status-incomplete" data-state="incomplete">Incomplet</span>'
+        in table
+    )
+    assert 'role="status"' not in table
+    assert "aria-live" not in table
 
 
 def test_automatic_decision_admitted_above_threshold(

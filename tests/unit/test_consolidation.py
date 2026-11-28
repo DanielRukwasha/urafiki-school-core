@@ -10,7 +10,7 @@ def payload():
         "class_name": "Classe A",
         "period_name": "Semestre 1",
         "academic_year": "2026-2027",
-        "courses": [{"name": "Course", "status": "incomplete"}],
+        "courses": [{"name": "Course", "status": "INCOMPLETE", "status_label": "Incomplet"}],
         "students": [],
         "decisions": [{"student_name": "Student", "automatic_decision": "ADMITTED"}],
         "distribution": [{"label": "10-12", "count": 2, "percent": "50 %"}],
@@ -24,6 +24,9 @@ def payload():
 
 def test_normalizer_preserves_server_values_without_calculation():
     view = normalize_consolidation(payload())
+    assert view["courses"][0]["state"] == {
+        "id": "incomplete", "variant": "incomplete", "label": "Incomplet",
+    }
     assert view["class_average"] == "12.40 %"
     assert view["decisions"][0]["automatic_decision"] == "ADMITTED"
     assert view["distribution"][0]["percent"] == "50 %"
@@ -35,6 +38,13 @@ def test_normalizer_preserves_server_values_without_calculation():
 def test_invalid_server_payload_fails_closed(broken):
     with pytest.raises(ConsolidationPayloadError):
         normalize_consolidation(broken)
+
+
+def test_unknown_course_status_is_rejected():
+    raw = payload()
+    raw["courses"][0]["status"] = "future-status"
+    with pytest.raises(ConsolidationPayloadError, match="unknown course.status"):
+        normalize_consolidation(raw)
 
 
 def test_presentation_sources_do_not_compute_metrics_in_browser():
