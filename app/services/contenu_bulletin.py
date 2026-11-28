@@ -265,16 +265,16 @@ def ligne_corrigee(avant: dict, apres: dict) -> int | None:
     Totals, ranks and percentage values are derived from the grades and
     are not compared — but the precision they are displayed with is: it
     comes from the tenant configuration, so a correction that changes it
-    is class-scope, never a single course's. It is compared both as the
-    frozen `precision_pourcentage` and as the number of decimals of every
-    frozen `pourcentage_affiche`, so a content frozen before that key
-    existed is covered too."""
-    structure = (
-        "schema", "classe", "periode", "precision_pourcentage", "colonnes", "presentation",
-    )
+    is class-scope, never a single course's. What is compared is the
+    effective precision of each content (`precision_effective`), so a
+    first grade entered or a last grade removed (no percentage on one
+    side) and a content frozen before `precision_pourcentage` existed are
+    judged on the precision they actually use."""
+    structure = ("schema", "classe", "periode", "colonnes", "presentation")
     if any(avant.get(cle) != apres.get(cle) for cle in structure):
         return None
-    if _decimales_affichees(avant) != _decimales_affichees(apres):
+    precision_avant, precision_apres = precision_effective(avant), precision_effective(apres)
+    if precision_avant is None or precision_avant != precision_apres:
         return None
     eleves_avant = {e["inscription_id"]: e for e in avant.get("eleves", [])}
     eleves_apres = {e["inscription_id"]: e for e in apres.get("eleves", [])}
@@ -295,6 +295,38 @@ def ligne_corrigee(avant: dict, apres: dict) -> int | None:
             if cotes_avant.get(ligne) != cotes_apres.get(ligne)
         )
     return int(next(iter(lignes))) if len(lignes) == 1 else None
+
+
+def precision_effective(contenu: dict) -> int | None:
+    """The percentage precision a frozen content uses, or None when it
+    cannot be established (then a comparison must answer "no").
+
+    - With `precision_pourcentage`: that value, provided every frozen
+      `pourcentage_affiche` agrees with it; a content contradicting its
+      own key gives None. A content with no percentage at all (no grade
+      yet) keeps its key's precision.
+    - Without the key (frozen before it existed): the number of decimals
+      shared by every `pourcentage_affiche`; None if they disagree or if
+      there is no percentage to infer it from."""
+    decimales = _decimales_affichees(contenu)
+    cle = contenu.get("precision_pourcentage")
+    if cle is not None:
+        return cle if decimales <= {cle} else None
+    return next(iter(decimales)) if len(decimales) == 1 else None
+
+
+def contenus_equivalents(avant: dict, apres: dict) -> bool:
+    """Whether two frozen contents describe the same bulletin. Identical
+    dicts are; so is a content frozen before `precision_pourcentage`
+    existed and a new one that differs from it only by that key — every
+    displayed value, `pourcentage_affiche` strings included, is then
+    identical. The stored contents and their fingerprints are never
+    rewritten."""
+    if avant == apres:
+        return True
+    if "precision_pourcentage" in avant or "precision_pourcentage" not in apres:
+        return False
+    return {cle: valeur for cle, valeur in apres.items() if cle != "precision_pourcentage"} == avant
 
 
 def _decimales_affichees(contenu: dict) -> set[int]:

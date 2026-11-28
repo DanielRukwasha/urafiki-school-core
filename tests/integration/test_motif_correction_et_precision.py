@@ -240,21 +240,106 @@ def test_correction_changing_a_grade_and_the_precision_is_class_scope(
     assert peut_lire_motif_correction(published["user"], school_class, v2)
 
 
-def test_precision_change_is_detected_without_the_frozen_key():
-    # A content frozen before `precision_pourcentage` existed: the number
-    # of decimals of the displayed percentages still tells them apart.
-    def contenu(cote, affiche):
-        return {
-            "schema": 1, "classe": {}, "periode": {}, "colonnes": [], "presentation": {},
-            "eleves": [{
-                "inscription_id": 1, "nom_complet": "A", "matricule": "M",
-                "cotes": {"7": {"cote": cote, "appreciation": None}},
-                "total": {"pourcentage_affiche": affiche},
-            }],
-        }
+_SANS_CLE = object()
 
-    assert ligne_corrigee(contenu("15", "75.00"), contenu("16", "80.00")) == 7
-    assert ligne_corrigee(contenu("15", "75.00"), contenu("16", "80.000")) is None
+
+def _contenu(cote, affiche, precision=_SANS_CLE):
+    """A minimal frozen content: one student, one line (7). `cote` None
+    means no grade yet, hence no percentage. Without `precision`, the
+    content has the format frozen before `precision_pourcentage` existed."""
+    contenu = {
+        "schema": 1, "classe": {}, "periode": {}, "colonnes": [], "presentation": {},
+        "eleves": [{
+            "inscription_id": 1, "nom_complet": "A", "matricule": "M",
+            "cotes": {} if cote is None else {"7": {"cote": cote, "appreciation": None}},
+            "total": {"pourcentage_affiche": affiche},
+        }],
+    }
+    if precision is not _SANS_CLE:
+        contenu["precision_pourcentage"] = precision
+    return contenu
+
+
+def test_precision_change_is_detected_without_the_frozen_key():
+    # Two contents frozen before the key: the displayed decimals decide.
+    assert ligne_corrigee(_contenu("15", "75.00"), _contenu("16", "80.00")) == 7
+    assert ligne_corrigee(_contenu("15", "75.00"), _contenu("16", "80.000")) is None
+
+
+@pytest.mark.parametrize("avant, apres", [
+    # First grade entered: no percentage before, same configured precision.
+    (_contenu(None, None, 2), _contenu("15", "75.00", 2)),
+    # Last grade removed: the reverse.
+    (_contenu("15", "75.00", 2), _contenu(None, None, 2)),
+    # Version frozen before the key, displaying two decimals, corrected
+    # by a new one at two decimals.
+    (_contenu("15", "75.00"), _contenu("16", "80.00", 2)),
+], ids=["premiere-cote", "derniere-cote-retiree", "ancien-format"])
+def test_single_line_correction_at_constant_precision_stays_pinned(avant, apres):
+    # Refutation of the Frontend review blocker 1 on 3fb011c.
+    assert ligne_corrigee(avant, apres) == 7
+
+
+@pytest.mark.parametrize("avant, apres", [
+    # Old format with no percentage: its precision cannot be established.
+    (_contenu(None, None), _contenu("15", "75.00", 2)),
+    # A content contradicting its own key.
+    (_contenu("15", "75.000", 2), _contenu("16", "80.00", 2)),
+    # Same key on both sides, but configured precision changed.
+    (_contenu("15", "75.00", 2), _contenu("16", "80.000", 3)),
+], ids=["ancien-format-sans-pourcentage", "cle-contredite", "precision-changee"])
+def test_unestablished_or_changed_precision_is_class_scope(avant, apres):
+    assert ligne_corrigee(avant, apres) is None
+
+
+def test_unchanged_bulletin_in_the_old_format_cannot_be_republished(
+    classe, client, db, monkeypatch
+):
+    # Refutation of the Frontend review blocker 2 on 3fb011c: v1 frozen in
+    # the format without `precision_pourcentage`, nothing changed, then a
+    # correction — its fingerprint differs only because of the new key.
+    from app.services import deliberation_service
+
+    calculer = deliberation_service.calculer_contenu
+
+    def ancien_format(*args):
+        contenu = calculer(*args)
+        del contenu["precision_pourcentage"]
+        return contenu
+
+    monkeypatch.setattr(deliberation_service, "calculer_contenu", ancien_format)
+    assert _publish(client, classe["base"]).status_code == 302
+    monkeypatch.undo()
+    (v1,) = _versions()
+    assert "precision_pourcentage" not in json.loads(v1.contenu)
+
+    response = client.post(classe["base"] + "/consolidation/correction", data={"motif": MOTIF})
+    assert response.status_code == 422
+    assert "identique à la version 1" in response.get_data(as_text=True)
+    assert _versions() == [v1]
+
+
+def test_real_correction_of_a_bulletin_in_the_old_format_is_published(
+    classe, client, db, monkeypatch
+):
+    # Guard: the equivalence never swallows a real change.
+    from app.services import deliberation_service
+
+    calculer = deliberation_service.calculer_contenu
+
+    def ancien_format(*args):
+        contenu = calculer(*args)
+        del contenu["precision_pourcentage"]
+        return contenu
+
+    monkeypatch.setattr(deliberation_service, "calculer_contenu", ancien_format)
+    assert _publish(client, classe["base"]).status_code == 302
+    monkeypatch.undo()
+    _grade(classe["enrollment"], classe["ligne"], classe["period"]).score = Decimal("16")
+    db.session.commit()
+    response = client.post(classe["base"] + "/consolidation/correction", data={"motif": MOTIF})
+    assert response.status_code == 302
+    assert len(_versions()) == 2
 
 
 def test_others_never_read_a_motif(corrections, school_class):

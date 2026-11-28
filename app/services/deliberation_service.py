@@ -24,6 +24,7 @@ must fix, not a value this module can safely guess.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -47,7 +48,12 @@ from app.models.grading import Grade, GradeAuditAction, GradeAuditLog
 from app.models.mixins import utcnow
 from app.models.student import Enrollment
 from app.models.tenant_config import TenantConfig
-from app.services.contenu_bulletin import ContenuBulletinError, calculer_contenu, serialiser
+from app.services.contenu_bulletin import (
+    ContenuBulletinError,
+    calculer_contenu,
+    contenus_equivalents,
+    serialiser,
+)
 from app.services.grade_calculation_engine import (
     CourseGradeInput,
     compute_period_total,
@@ -133,8 +139,11 @@ def _commit_publication():
 def _version_figee(publication, *, numero, auteur, publie_le, motif=None, corrigee=None):
     """A new BulletinVersion carrying the bulletin's content computed now,
     frozen as canonical JSON with its SHA-256 (invariant 9). A correction
-    whose content is identical to the version it corrects is refused:
-    a correction must correct something."""
+    whose content is equivalent to the version it corrects is refused:
+    a correction must correct something. Equivalence, not raw fingerprint
+    equality: a version frozen before `precision_pourcentage` existed and
+    an unchanged bulletin computed now differ only by that key
+    (`contenus_equivalents`)."""
     from app.tenant_presentation import presentation_configuration
 
     klass = db.session.get(SchoolClass, publication.school_class_id)
@@ -144,7 +153,11 @@ def _version_figee(publication, *, numero, auteur, publie_le, motif=None, corrig
     except (ContenuBulletinError, GrilleConfigError) as exc:
         raise TransitionError(f"Publication impossible : {exc}") from exc
     texte, empreinte = serialiser(contenu)
-    if corrigee is not None and corrigee.empreinte == empreinte:
+    if corrigee is not None and (
+        corrigee.empreinte == empreinte
+        or (corrigee.contenu is not None
+            and contenus_equivalents(json.loads(corrigee.contenu), contenu))
+    ):
         raise TransitionError(
             f"Le bulletin est identique à la version {corrigee.numero} : "
             "aucune correction à publier."

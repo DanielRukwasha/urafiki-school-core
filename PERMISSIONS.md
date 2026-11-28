@@ -153,10 +153,19 @@ décide jamais elle-même.
   périmètre de la classe : changement de structure, de présentation,
   d'élèves, de cotes sur plusieurs lignes, ou de **précision figée des
   pourcentages** (elle vient de la configuration de l'école, pas d'un
-  cours). En cas de doute : non. La précision est comparée par la clé
-  `precision_pourcentage` et par le nombre de décimales de chaque
-  `pourcentage_affiche`, ce qui couvre aussi un contenu figé avant
-  l'existence de la clé.
+  cours). En cas de doute : non. C'est la **précision effective** de
+  chaque contenu qui est comparée (`precision_effective`) : la clé
+  `precision_pourcentage` si les `pourcentage_affiche` la respectent
+  (un contenu sans aucun pourcentage, avant la première cote, garde la
+  précision de sa clé) ; à défaut de clé, le nombre de décimales commun
+  à tous les `pourcentage_affiche`. Une précision qui ne peut pas être
+  établie (ancien format sans aucun pourcentage, contenu qui contredit
+  sa clé) donne « non ».
+- Une correction dont le bulletin est équivalent à la version corrigée
+  est refusée. Un contenu figé avant `precision_pourcentage` et un
+  contenu recalculé qui n'en diffère que par cette clé sont
+  équivalents ; les anciens instantanés et leurs empreintes ne sont pas
+  réécrits.
 - Une version d'une autre classe : non.
 
 **Intégrité du contenu figé — même contrat pour tous les profils :**
